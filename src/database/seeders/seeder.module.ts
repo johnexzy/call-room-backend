@@ -22,6 +22,9 @@ import { UserSeeder } from './user.seeder';
       synchronize: true,
       dropSchema: true,
       logging: true,
+      ssl: {
+        rejectUnauthorized: false, // Required for self-signed certificates
+      },
     }),
     TypeOrmModule.forFeature([User, Call, QueueEntry, Feedback, Settings]),
   ],

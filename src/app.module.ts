@@ -33,7 +33,9 @@ import { Settings } from './entities/settings.entity';
         entities: [User, Call, QueueEntry, Feedback, Settings],
         synchronize: configService.get('NODE_ENV') !== 'production',
         logging: configService.get('NODE_ENV') === 'development',
-        ssl: configService.get('NODE_ENV') === 'production',
+        ssl: {
+          rejectUnauthorized: false,
+        },
       }),
       inject: [ConfigService],
     }),
