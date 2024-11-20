@@ -1,8 +1,8 @@
 {
   "name": "call-room",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "A real-time customer service call management system built with NestJS, featuring WebRTC signaling, WebSocket communication, and queue management.",
+  "author": "obajohn75@gmail.com",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
