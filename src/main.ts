@@ -2,9 +2,11 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
 
   // Enable validation pipes
   app.useGlobalPipes(new ValidationPipe());
@@ -15,6 +17,20 @@ async function bootstrap() {
     prefix: 'v',
   });
   app.setGlobalPrefix('api');
+
+  // Configure CORS
+  app.enableCors({
+    origin: configService.get('CORS_ORIGINS', 'http://localhost:3000'),
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+    ],
+  });
 
   // Swagger configuration
   const config = new DocumentBuilder()
@@ -29,13 +45,6 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
-
-  // Enable CORS
-  app.enableCors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  });
 
   await app.listen(process.env.PORT || 5200);
 }

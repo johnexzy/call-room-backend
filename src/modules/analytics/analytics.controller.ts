@@ -11,7 +11,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AnalyticsController {
-  constructor(private analyticsService: AnalyticsService) {}
+  constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('metrics')
   @ApiOperation({ summary: 'Get analytics metrics' })
@@ -21,7 +21,9 @@ export class AnalyticsController {
 
   @Get('call-quality')
   @ApiOperation({ summary: 'Get call quality metrics' })
-  async getCallQualityMetrics(@Query('timeframe') timeframe: 'day' | 'week' | 'month') {
+  async getCallQualityMetrics(
+    @Query('timeframe') timeframe: 'day' | 'week' | 'month',
+  ) {
     return this.analyticsService.getCallQualityMetrics(timeframe);
   }
-} 
+}

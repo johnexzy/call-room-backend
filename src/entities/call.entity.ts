@@ -7,7 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { User } from './user.entity';
 import { Feedback } from './feedback.entity';
 
 @Entity('calls')
@@ -58,25 +58,4 @@ export class Call {
 
   @Column({ type: 'interval', nullable: true })
   duration?: string;
-
-  // Utility methods
-  calculateDuration(): number {
-    if (!this.endTime) return 0;
-    return (this.endTime.getTime() - this.startTime.getTime()) / 1000;
-  }
-
-  isActive(): boolean {
-    return this.status === 'active';
-  }
-
-  canBeRated(): boolean {
-    return this.status === 'completed' && !this.feedback?.length;
-  }
-
-  updateQualityMetrics(metrics: Partial<Call['qualityMetrics']>) {
-    this.qualityMetrics = {
-      ...this.qualityMetrics,
-      ...metrics,
-    };
-  }
 }

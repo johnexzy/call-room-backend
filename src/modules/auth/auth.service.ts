@@ -12,13 +12,11 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    // Create the user
     const user = await this.usersService.create({
       ...registerDto,
       isAvailable: registerDto.role === 'representative',
     });
 
-    // Generate tokens
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _, ...result } = user;
     return {
@@ -31,7 +29,7 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
     if (user && (await bcrypt.compare(password, user.password))) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password: passwordHash, ...result } = user;
+      const { password: _, ...result } = user;
       return result;
     }
     return null;

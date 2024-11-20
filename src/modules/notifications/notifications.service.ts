@@ -1,78 +1,45 @@
 import { Injectable } from '@nestjs/common';
 import { NotificationsGateway } from './notifications.gateway';
-import {
-  NotificationPayload,
-  NotificationType,
-} from './interfaces/notification.interface';
+import { NotificationType } from './interfaces/notification.interface';
 
 @Injectable()
 export class NotificationsService {
   constructor(private notificationsGateway: NotificationsGateway) {}
 
-  async sendQueueUpdate(
-    userId: string,
-    position: number,
-    estimatedWaitTime: number,
-  ) {
-    const notification: NotificationPayload = {
-      type: NotificationType.QUEUE_UPDATE,
-      title: 'Queue Position Updated',
-      message: `Your position in queue is ${position}`,
-      data: {
-        position,
-        estimatedWaitTime,
-      },
-    };
-
-    await this.notificationsGateway.sendNotification(userId, notification);
-  }
-
-  async sendCallReady(userId: string, representativeId: string) {
-    const notification: NotificationPayload = {
+  async notifyCallReady(userId: string) {
+    await this.notificationsGateway.sendNotification(userId, {
       type: NotificationType.CALL_READY,
-      title: 'Representative Available',
-      message: "It's your turn! Connecting to representative...",
-      data: {
-        representativeId,
-      },
-    };
-
-    await this.notificationsGateway.sendNotification(userId, notification);
+      title: 'Call Ready',
+      message: 'Your call is ready. Connecting you with a representative...',
+    });
   }
 
-  async sendCallMissed(userId: string) {
-    const notification: NotificationPayload = {
+  async notifyCallMissed(userId: string) {
+    await this.notificationsGateway.sendNotification(userId, {
       type: NotificationType.CALL_MISSED,
-      title: 'Missed Call',
-      message: 'You missed your turn. Please rejoin the queue.',
-    };
-
-    await this.notificationsGateway.sendNotification(userId, notification);
+      title: 'Call Missed',
+      message: 'You missed your call. Please rejoin the queue.',
+    });
   }
 
-  async notifyRepresentativeAvailable(representativeId: string) {
-    const notification: NotificationPayload = {
+  async notifyRepresentativeAvailable(userId: string) {
+    await this.notificationsGateway.sendNotification(userId, {
       type: NotificationType.REPRESENTATIVE_AVAILABLE,
       title: 'Representative Available',
-      message: 'A new representative is available for calls',
-      data: {
-        representativeId,
-      },
-    };
-
-    await this.notificationsGateway.broadcastToRole('customer', notification);
+      message: 'A representative is now available to take your call.',
+    });
   }
 
-  async sendCallbackScheduled(userId: string, scheduledTime: Date) {
-    const notification: NotificationPayload = {
-      type: NotificationType.CALLBACK_SCHEDULED,
-      title: 'Callback Scheduled',
-      message: `Your callback has been scheduled for ${scheduledTime.toLocaleString()}`,
-      data: {
-        scheduledTime,
-      },
-    };
-
-    await this.notificationsGateway.sendNotification(userId, notification);
+  async notifyQueuePosition(
+    userId: string,
+    position: number,
+    waitTime: number,
+  ) {
+    await this.notificationsGateway.sendNotification(userId, {
+      type: NotificationType.QUEUE_UPDATE,
+      title: 'Queue Update',
+      message: `Your position in queue: ${position}. Estimated wait time: ${waitTime} minutes`,
+      data: { position, waitTime },
+    });
   }
 }

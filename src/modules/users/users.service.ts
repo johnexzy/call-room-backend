@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './entities/user.entity';
+import { User } from '../../entities/user.entity';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -13,11 +13,25 @@ export class UsersService {
   ) {}
 
   async findOne(id: string): Promise<User | null> {
-    return this.usersRepository.findOneBy({ id });
+    return this.usersRepository.findOne({
+      where: { id },
+      select: ['id', 'email', 'firstName', 'lastName', 'role', 'isAvailable'],
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.usersRepository.findOneBy({ email });
+    return this.usersRepository.findOne({
+      where: { email },
+      select: [
+        'id',
+        'email',
+        'password',
+        'firstName',
+        'lastName',
+        'role',
+        'isAvailable',
+      ],
+    });
   }
 
   async create(userData: {

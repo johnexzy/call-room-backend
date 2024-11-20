@@ -6,9 +6,12 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from '../../entities/user.entity';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([User]),
     UsersModule,
     PassportModule,
     JwtModule.registerAsync({

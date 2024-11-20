@@ -35,7 +35,10 @@ export class UsersController {
 
   @Put('profile')
   @ApiOperation({ summary: 'Update user profile' })
-  async updateProfile(@Request() req, @Body() updateProfileDto: UpdateProfileDto) {
+  async updateProfile(
+    @Request() req,
+    @Body() updateProfileDto: UpdateProfileDto,
+  ) {
     return this.usersService.updateProfile(req.user.id, updateProfileDto);
   }
 
@@ -69,4 +72,20 @@ export class UsersController {
   ) {
     return this.usersService.updateAvailability(req.user.id, body.isAvailable);
   }
-} 
+
+  @Get('me/availability')
+  @ApiOperation({ summary: 'Get current user availability' })
+  async getAvailability(@Request() req) {
+    const user = await this.usersService.findOne(req.user.id);
+    return { isAvailable: user?.isAvailable };
+  }
+
+  @Put('me/availability')
+  @ApiOperation({ summary: 'Update current user availability' })
+  async updateMyAvailability(
+    @Request() req,
+    @Body() body: { isAvailable: boolean },
+  ) {
+    return this.usersService.updateAvailability(req.user.id, body.isAvailable);
+  }
+}

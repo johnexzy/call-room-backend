@@ -9,8 +9,10 @@ import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 
 @WebSocketGateway({
+  namespace: 'queue',
   cors: {
-    origin: '*',
+    origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    credentials: true,
   },
 })
 export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {

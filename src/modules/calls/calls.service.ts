@@ -1,48 +1,55 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Call } from './entities/call.entity';
-import { QueueService } from '../queue/queue.service';
-import { UsersService } from '../users/users.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { Call } from '../../entities/call.entity';
+import { Feedback } from '../../entities/feedback.entity';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
-import { Feedback } from './entities/feedback.entity';
+import { User } from '../../entities/user.entity';
 
 @Injectable()
 export class CallsService {
   constructor(
     @InjectRepository(Call)
-    private callsRepository: Repository<Call>,
+    private callRepository: Repository<Call>,
     @InjectRepository(Feedback)
     private feedbackRepository: Repository<Feedback>,
-    private queueService: QueueService,
-    private usersService: UsersService,
-    private notificationsService: NotificationsService,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
-  async startCall(customerId: string): Promise<Call> {
-    const representative = await this.findAvailableRepresentative();
-    if (!representative) {
-      throw new Error('No representatives available');
+  async startCall(customerId: string) {
+    const customer = await this.userRepository.findOne({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
     }
 
-    const call = this.callsRepository.create({
-      customer: { id: customerId },
-      representative: { id: representative.id },
+    const call = this.callRepository.create({
+      customer,
       status: 'active',
     });
 
-    await this.usersService.updateAvailability(representative.id, false);
-    await this.notificationsService.sendCallReady(
-      customerId,
-      representative.id,
-    );
-
-    return this.callsRepository.save(call);
+    return this.callRepository.save(call);
   }
 
-  async endCall(callId: string, notes?: string): Promise<Call> {
-    const call = await this.callsRepository.findOne({
+  async getActiveCallForUser(userId: string) {
+    return this.callRepository.findOne({
+      where: [
+        { customer: { id: userId }, status: 'active' },
+        { representative: { id: userId }, status: 'active' },
+      ],
+      relations: ['customer', 'representative'],
+    });
+  }
+
+  async endCall(callId: string, userId: string, notes?: string) {
+    const call = await this.callRepository.findOne({
       where: { id: callId },
       relations: ['representative'],
     });
@@ -51,23 +58,24 @@ export class CallsService {
       throw new NotFoundException('Call not found');
     }
 
-    // Update call status
+    if (call.representative.id !== userId) {
+      throw new UnauthorizedException(
+        'Only the representative can end the call',
+      );
+    }
+
     call.status = 'completed';
     call.endTime = new Date();
     if (notes) {
       call.notes = notes;
     }
 
-    // Make representative available again
-    await this.usersService.updateAvailability(call.representative.id, true);
-
-    return this.callsRepository.save(call);
+    return this.callRepository.save(call);
   }
 
-  async markCallAsMissed(callId: string): Promise<Call> {
-    const call = await this.callsRepository.findOne({
+  async markCallAsMissed(callId: string) {
+    const call = await this.callRepository.findOne({
       where: { id: callId },
-      relations: ['representative', 'customer'],
     });
 
     if (!call) {
@@ -76,32 +84,24 @@ export class CallsService {
 
     call.status = 'missed';
     call.endTime = new Date();
-
-    await this.usersService.updateAvailability(call.representative.id, true);
-    await this.notificationsService.sendCallMissed(call.customer.id);
-
-    return this.callsRepository.save(call);
+    return this.callRepository.save(call);
   }
 
-  private async findAvailableRepresentative() {
-    return this.usersService.findAvailableRepresentative();
-  }
-
-  async getCallHistory(userId: string, role: 'customer' | 'representative') {
-    const whereClause =
+  async getCallHistory(userId: string, role: string) {
+    const where =
       role === 'customer'
         ? { customer: { id: userId } }
         : { representative: { id: userId } };
 
-    return this.callsRepository.find({
-      where: whereClause,
-      relations: ['customer', 'representative'],
+    return this.callRepository.find({
+      where,
+      relations: ['customer', 'representative', 'feedback'],
       order: { startTime: 'DESC' },
     });
   }
 
   async addFeedback(callId: string, createFeedbackDto: CreateFeedbackDto) {
-    const call = await this.callsRepository.findOne({
+    const call = await this.callRepository.findOne({
       where: { id: callId },
     });
 
@@ -110,38 +110,23 @@ export class CallsService {
     }
 
     const feedback = this.feedbackRepository.create({
-      call,
       ...createFeedbackDto,
+      call,
     });
 
     return this.feedbackRepository.save(feedback);
   }
 
   async getQualityMetrics(callId: string) {
-    const call = await this.callsRepository.findOne({
+    const call = await this.callRepository.findOne({
       where: { id: callId },
-      relations: ['qualityMetrics'],
+      select: ['qualityMetrics'],
     });
 
     if (!call) {
       throw new NotFoundException('Call not found');
     }
 
-    return {
-      audioQuality: {
-        packetLoss: 0.5, // Example metrics
-        jitter: 15,
-        latency: 100,
-      },
-      videoQuality: {
-        frameRate: 30,
-        resolution: '720p',
-        bitrate: 1500,
-      },
-      networkMetrics: {
-        bandwidth: 2000,
-        roundTripTime: 50,
-      },
-    };
+    return call.qualityMetrics;
   }
 }

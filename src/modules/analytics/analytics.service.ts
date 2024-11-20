@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { Call } from '../calls/entities/call.entity';
-import { Feedback } from '../calls/entities/feedback.entity';
+import { Call } from '../../entities/call.entity';
+import { Feedback } from '../../entities/feedback.entity';
+import { QueueEntry } from '../../entities/queue-entry.entity';
 import { subDays } from 'date-fns';
+
+type TimeframeType = 'day' | 'week' | 'month';
 
 @Injectable()
 export class AnalyticsService {
@@ -12,9 +15,11 @@ export class AnalyticsService {
     private callsRepository: Repository<Call>,
     @InjectRepository(Feedback)
     private feedbackRepository: Repository<Feedback>,
+    @InjectRepository(QueueEntry)
+    private queueRepository: Repository<QueueEntry>,
   ) {}
 
-  private getDateRange(timeframe: 'day' | 'week' | 'month') {
+  private getDateRange(timeframe: TimeframeType) {
     const now = new Date();
     const ranges = {
       day: subDays(now, 1),
@@ -24,19 +29,24 @@ export class AnalyticsService {
     return ranges[timeframe];
   }
 
-  async getMetrics(timeframe: 'day' | 'week' | 'month') {
+  async getMetrics(timeframe: TimeframeType) {
     const startDate = this.getDateRange(timeframe);
 
-    const [calls, feedback] = await Promise.all([
+    const [calls, feedback, queueEntries] = await Promise.all([
       this.callsRepository.find({
         where: {
           startTime: Between(startDate, new Date()),
         },
-        relations: ['feedback'],
       }),
       this.feedbackRepository.find({
         where: {
           createdAt: Between(startDate, new Date()),
+        },
+      }),
+      this.queueRepository.find({
+        where: {
+          joinedAt: Between(startDate, new Date()),
+          status: 'connected',
         },
       }),
     ]);
@@ -44,30 +54,30 @@ export class AnalyticsService {
     const totalCalls = calls.length;
     const missedCalls = calls.filter((call) => call.status === 'missed').length;
     const averageRating =
-      feedback.reduce((acc, curr) => acc + curr.rating, 0) / feedback.length || 0;
-    const averageCallDuration =
-      calls.reduce((acc, curr) => {
-        if (curr.endTime) {
-          return (
-            acc +
-            (new Date(curr.endTime).getTime() -
-              new Date(curr.startTime).getTime()) /
-              1000 /
-              60
-          );
-        }
-        return acc;
-      }, 0) / totalCalls || 0;
+      feedback.reduce((acc, curr) => acc + curr.rating, 0) / feedback.length ||
+      0;
+
+    // Calculate average wait time only for connected entries
+    const averageWaitTime =
+      queueEntries.reduce((acc, entry) => {
+        const waitTime =
+          new Date(entry.updatedAt).getTime() -
+          new Date(entry.joinedAt).getTime();
+        return acc + waitTime;
+      }, 0) / queueEntries.length || 0;
 
     return {
       totalCalls,
       missedCalls,
       averageRating,
-      averageCallDuration,
+      averageWaitTime: Math.round(averageWaitTime / 1000 / 60), // Convert to minutes
+      activeQueueLength: await this.queueRepository.count({
+        where: { status: 'waiting' },
+      }),
     };
   }
 
-  async getCallQualityMetrics(timeframe: 'day' | 'week' | 'month') {
+  async getCallQualityMetrics(timeframe: TimeframeType) {
     const startDate = this.getDateRange(timeframe);
 
     const calls = await this.callsRepository.find({
@@ -81,11 +91,14 @@ export class AnalyticsService {
     const metrics = calls.reduce(
       (acc, curr) => {
         if (curr.qualityMetrics) {
-          acc.audioQuality.packetLoss += curr.qualityMetrics.audioQuality.packetLoss;
+          acc.audioQuality.packetLoss +=
+            curr.qualityMetrics.audioQuality.packetLoss;
           acc.audioQuality.jitter += curr.qualityMetrics.audioQuality.jitter;
           acc.audioQuality.latency += curr.qualityMetrics.audioQuality.latency;
-          acc.networkMetrics.bandwidth += curr.qualityMetrics.networkMetrics.bandwidth;
-          acc.networkMetrics.roundTripTime += curr.qualityMetrics.networkMetrics.roundTripTime;
+          acc.networkMetrics.bandwidth +=
+            curr.qualityMetrics.networkMetrics.bandwidth;
+          acc.networkMetrics.roundTripTime +=
+            curr.qualityMetrics.networkMetrics.roundTripTime;
         }
         return acc;
       },
@@ -95,7 +108,7 @@ export class AnalyticsService {
       },
     );
 
-    const count = calls.length;
+    const count = calls.length || 1; // Avoid division by zero
     return {
       audioQuality: {
         packetLoss: metrics.audioQuality.packetLoss / count,
@@ -108,4 +121,4 @@ export class AnalyticsService {
       },
     };
   }
-} 
+}

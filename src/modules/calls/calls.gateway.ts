@@ -7,17 +7,16 @@ import {
 import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
-import { NotificationPayload } from './interfaces/notification.interface';
+import { WS_NAMESPACES, WS_EVENTS } from '../../constants/websocket.constants';
 
 @WebSocketGateway({
-  namespace: 'notifications',
+  namespace: WS_NAMESPACES.CALLS,
   cors: {
     origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    credentials: true,
   },
 })
-export class NotificationsGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
+export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -34,14 +33,21 @@ export class NotificationsGateway
     this.connectedClients.delete(userId);
   }
 
-  async sendNotification(userId: string, notification: NotificationPayload) {
+  async notifyCallAssigned(userId: string, callData: any) {
     const client = this.connectedClients.get(userId);
     if (client) {
-      client.emit('notification', notification);
+      client.emit(WS_EVENTS.CALLS.CALL_ASSIGNED, callData);
     }
   }
 
-  async broadcastToRole(role: string, notification: NotificationPayload) {
-    this.server.emit(`role:${role}`, notification);
+  async notifyCallEnded(userId: string) {
+    const client = this.connectedClients.get(userId);
+    if (client) {
+      client.emit(WS_EVENTS.CALLS.CALL_ENDED);
+    }
+  }
+
+  async broadcastCallUpdate() {
+    this.server.emit(WS_EVENTS.CALLS.CALL_UPDATE);
   }
 }

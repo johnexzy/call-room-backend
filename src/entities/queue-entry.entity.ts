@@ -6,7 +6,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { User } from './user.entity';
 
 @Entity('queue_entries')
 export class QueueEntry {

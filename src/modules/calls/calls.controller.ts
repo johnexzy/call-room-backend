@@ -6,7 +6,7 @@ import {
   Get,
   UseGuards,
   Request,
-  Version,
+  Put,
 } from '@nestjs/common';
 import { CallsService } from './calls.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -16,7 +16,6 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
-  ApiBody,
 } from '@nestjs/swagger';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 
@@ -30,8 +29,13 @@ import { CreateFeedbackDto } from './dto/create-feedback.dto';
 export class CallsController {
   constructor(private callsService: CallsService) {}
 
+  @Get('active')
+  @ApiOperation({ summary: 'Get active call for current user' })
+  async getActiveCall(@Request() req) {
+    return this.callsService.getActiveCallForUser(req.user.id);
+  }
+
   @Post('start/:customerId')
-  @Version('1')
   @ApiOperation({ summary: 'Start a call with a customer' })
   @ApiParam({
     name: 'customerId',
@@ -45,73 +49,40 @@ export class CallsController {
     return this.callsService.startCall(customerId);
   }
 
-  @Post('end/:callId')
-  @Version('1')
-  @ApiOperation({ summary: 'End an active call' })
-  @ApiParam({
-    name: 'callId',
-    description: 'The ID of the call to end',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        notes: {
-          type: 'string',
-          example: 'Customer inquiry resolved',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Call ended successfully',
-  })
+  @Put(':id/end')
+  @ApiOperation({ summary: 'End a call' })
   async endCall(
-    @Param('callId') callId: string,
+    @Param('id') id: string,
+    @Request() req,
     @Body() body: { notes?: string },
   ) {
-    return this.callsService.endCall(callId, body.notes);
+    return this.callsService.endCall(id, req.user.id, body.notes);
   }
 
-  @Post('missed/:callId')
-  @Version('1')
+  @Post(':id/missed')
   @ApiOperation({ summary: 'Mark a call as missed' })
-  @ApiParam({
-    name: 'callId',
-    description: 'The ID of the missed call',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Call marked as missed',
-  })
-  async markCallAsMissed(@Param('callId') callId: string) {
-    return this.callsService.markCallAsMissed(callId);
+  async markCallAsMissed(@Param('id') id: string) {
+    return this.callsService.markCallAsMissed(id);
   }
 
   @Get('history')
-  @Version('1')
   @ApiOperation({ summary: 'Get call history' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns the call history',
-  })
   async getCallHistory(@Request() req) {
     return this.callsService.getCallHistory(req.user.id, req.user.role);
   }
 
-  @Post(':callId/feedback')
+  @Post(':id/feedback')
   @ApiOperation({ summary: 'Submit feedback for a call' })
   async submitFeedback(
-    @Param('callId') callId: string,
+    @Param('id') id: string,
     @Body() createFeedbackDto: CreateFeedbackDto,
   ) {
-    return this.callsService.addFeedback(callId, createFeedbackDto);
+    return this.callsService.addFeedback(id, createFeedbackDto);
   }
 
-  @Get(':callId/quality-metrics')
+  @Get(':id/quality')
   @ApiOperation({ summary: 'Get call quality metrics' })
-  async getCallQualityMetrics(@Param('callId') callId: string) {
-    return this.callsService.getQualityMetrics(callId);
+  async getCallQualityMetrics(@Param('id') id: string) {
+    return this.callsService.getQualityMetrics(id);
   }
 }

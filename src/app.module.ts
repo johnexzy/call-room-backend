@@ -7,7 +7,13 @@ import { UsersModule } from './modules/users/users.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { CallsModule } from './modules/calls/calls.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { User } from './entities/user.entity';
+import { Call } from './entities/call.entity';
+import { QueueEntry } from './entities/queue-entry.entity';
+import { Feedback } from './entities/feedback.entity';
 
 @Module({
   imports: [
@@ -23,8 +29,10 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        entities: [User, Call, QueueEntry, Feedback],
         synchronize: configService.get('NODE_ENV') !== 'production',
+        logging: configService.get('NODE_ENV') === 'development',
+        ssl: configService.get('NODE_ENV') === 'production',
       }),
       inject: [ConfigService],
     }),
@@ -33,6 +41,8 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     QueueModule,
     CallsModule,
     NotificationsModule,
+    AnalyticsModule,
+    AdminModule,
   ],
   providers: [
     {

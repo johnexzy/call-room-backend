@@ -17,4 +17,4 @@ export class UpdateProfileDto {
   @IsString()
   @MinLength(2)
   lastName: string;
-} 
+}

@@ -7,15 +7,34 @@ import {
 import { Server, Socket } from 'socket.io';
 import { UseGuards } from '@nestjs/common';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
-import { NotificationPayload } from './interfaces/notification.interface';
+
+interface MetricsUpdate {
+  totalCalls: number;
+  missedCalls: number;
+  averageRating: number;
+  averageCallDuration: number;
+}
+
+interface QualityUpdate {
+  audioQuality: {
+    packetLoss: number;
+    jitter: number;
+    latency: number;
+  };
+  networkMetrics: {
+    bandwidth: number;
+    roundTripTime: number;
+  };
+}
 
 @WebSocketGateway({
-  namespace: 'notifications',
+  namespace: 'analytics',
   cors: {
     origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    credentials: true,
   },
 })
-export class NotificationsGateway
+export class AnalyticsGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
@@ -34,14 +53,11 @@ export class NotificationsGateway
     this.connectedClients.delete(userId);
   }
 
-  async sendNotification(userId: string, notification: NotificationPayload) {
-    const client = this.connectedClients.get(userId);
-    if (client) {
-      client.emit('notification', notification);
-    }
+  broadcastMetricsUpdate(metrics: MetricsUpdate) {
+    this.server.emit('metrics_update', metrics);
   }
 
-  async broadcastToRole(role: string, notification: NotificationPayload) {
-    this.server.emit(`role:${role}`, notification);
+  broadcastQualityUpdate(quality: QualityUpdate) {
+    this.server.emit('quality_update', quality);
   }
 }

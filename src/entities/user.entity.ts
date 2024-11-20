@@ -1,22 +1,22 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { Call } from '../../calls/entities/call.entity';
-import { QueueEntry } from '../../queue/entities/queue-entry.entity';
+import { Call } from './call.entity';
+import { QueueEntry } from './queue-entry.entity';
 
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
+  @Column({ unique: true, length: 255 })
   email: string;
 
-  @Column()
+  @Column({ select: false })
   password: string;
 
-  @Column()
+  @Column({ length: 100 })
   firstName: string;
 
-  @Column()
+  @Column({ length: 100 })
   lastName: string;
 
   @Column({
