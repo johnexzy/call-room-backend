@@ -3,34 +3,95 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  SubscribeMessage,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { UseGuards } from '@nestjs/common';
-import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { Server } from 'socket.io';
+import { Logger } from '@nestjs/common';
 import { WS_NAMESPACES, WS_EVENTS } from '../../constants/websocket.constants';
+import { ExtendedSocket } from '../auth/gateway.ts/auth.middleware';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { WSAuthMiddleware } from '../auth/gateway.ts/auth.middleware';
 
 @WebSocketGateway({
   namespace: WS_NAMESPACES.CALLS,
   cors: {
     origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
-    credentials: true,
   },
 })
 export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  constructor(
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) {}
+
   @WebSocketServer()
   server: Server;
 
-  private connectedClients: Map<string, Socket> = new Map();
-
-  @UseGuards(WsJwtGuard)
-  handleConnection(client: Socket) {
-    const userId = client.handshake.query.userId as string;
-    this.connectedClients.set(userId, client);
+  afterInit(server: Server) {
+    server.use(WSAuthMiddleware(this.jwtService, this.configService));
+    const dateString = new Date().toLocaleString();
+    const message = `[WebSocket] ${process.pid} - ${dateString} LOG [WebSocketServer] Websocket server successfully started`;
+    this.logger.log(message);
   }
 
-  handleDisconnect(client: Socket) {
-    const userId = client.handshake.query.userId as string;
+  private connectedClients: Map<string, ExtendedSocket> = new Map();
+  private logger = new Logger(CallsGateway.name);
+
+  handleConnection(client: ExtendedSocket) {
+    const userId = client.subId;
+    this.connectedClients.set(userId, client);
+    this.logger.log(`Client connected: ${userId}`);
+  }
+
+  handleDisconnect(client: ExtendedSocket) {
+    const userId = client.subId;
     this.connectedClients.delete(userId);
+  }
+
+  @SubscribeMessage('call-offer')
+  async handleCallOffer(client: ExtendedSocket, payload: any) {
+    const { targetUserId, offer, callId } = payload;
+    const targetClient = this.connectedClients.get(targetUserId);
+    if (targetClient) {
+      targetClient.emit('call-offer', {
+        offer,
+        callId,
+        fromUserId: client.subId,
+      });
+    } else {
+      this.logger.warn(`Target client not found: ${targetUserId}`);
+    }
+  }
+
+  @SubscribeMessage('call-answer')
+  async handleCallAnswer(client: ExtendedSocket, payload: any) {
+    const { targetUserId, answer, callId } = payload;
+    const targetClient = this.connectedClients.get(targetUserId);
+    if (targetClient) {
+      targetClient.emit('call-answer', {
+        answer,
+        callId,
+        fromUserId: client.subId,
+      });
+    } else {
+      this.logger.warn(`Target client not found: ${targetUserId}`);
+    }
+  }
+
+  @SubscribeMessage('ice-candidate')
+  async handleIceCandidate(client: ExtendedSocket, payload: any) {
+    const { targetUserId, candidate, callId } = payload;
+    const targetClient = this.connectedClients.get(targetUserId);
+    if (targetClient) {
+      targetClient.emit('ice-candidate', {
+        candidate,
+        callId,
+        fromUserId: client.subId,
+      });
+    } else {
+      this.logger.warn(`Target client not found: ${targetUserId}`);
+    }
   }
 
   async notifyCallAssigned(userId: string, callData: any) {

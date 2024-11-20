@@ -26,14 +26,28 @@ export class QueueService {
   }
 
   async addToQueue(userId: string) {
+    // First, check if user is already in queue
+    const existingEntry = await this.queueRepository.findOne({
+      where: { user: { id: userId }, status: 'waiting' },
+    });
+
+    if (existingEntry) {
+      return existingEntry;
+    }
+
     // Get the last position in queue
     const lastEntry = await this.queueRepository.findOne({
+      where: { status: 'waiting' },
       order: { position: 'DESC' },
     });
     const position = (lastEntry?.position ?? 0) + 1;
 
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
     const entry = this.queueRepository.create({
-      user: { id: userId },
+      user,
       position,
       status: 'waiting',
     });
@@ -45,15 +59,30 @@ export class QueueService {
 
   async getEstimatedWaitTime(userId: string) {
     const entry = await this.queueRepository.findOne({
-      where: { user: { id: userId } },
+      where: { user: { id: userId }, status: 'waiting' },
+      relations: ['user'],
     });
 
     if (!entry) {
       return { estimatedMinutes: 0 };
     }
 
-    // Estimate 5 minutes per person in queue ahead
-    const estimatedMinutes = (entry.position - 1) * 5;
+    // Get number of available representatives
+    const availableReps = await this.userRepository.count({
+      where: { role: 'representative', isAvailable: true },
+    });
+
+    // Get number of people ahead in queue
+    const peopleAhead = entry.position - 1;
+
+    // Base estimate: 5 minutes per person
+    let estimatedMinutes = peopleAhead * 5;
+
+    // Adjust based on available representatives
+    if (availableReps > 0) {
+      estimatedMinutes = Math.ceil(estimatedMinutes / availableReps);
+    }
+
     return { estimatedMinutes };
   }
 

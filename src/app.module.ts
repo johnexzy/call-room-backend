@@ -14,6 +14,7 @@ import { User } from './entities/user.entity';
 import { Call } from './entities/call.entity';
 import { QueueEntry } from './entities/queue-entry.entity';
 import { Feedback } from './entities/feedback.entity';
+import { Settings } from './entities/settings.entity';
 
 @Module({
   imports: [
@@ -29,7 +30,7 @@ import { Feedback } from './entities/feedback.entity';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [User, Call, QueueEntry, Feedback],
+        entities: [User, Call, QueueEntry, Feedback, Settings],
         synchronize: configService.get('NODE_ENV') !== 'production',
         logging: configService.get('NODE_ENV') === 'development',
         ssl: configService.get('NODE_ENV') === 'production',

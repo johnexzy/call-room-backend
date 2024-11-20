@@ -5,6 +5,7 @@ import { User } from '../../entities/user.entity';
 import { Call } from '../../entities/call.entity';
 import { QueueEntry } from '../../entities/queue-entry.entity';
 import { Feedback } from '../../entities/feedback.entity';
+import { Settings } from '../../entities/settings.entity';
 import { UserSeeder } from './user.seeder';
 
 @Module({
@@ -17,12 +18,12 @@ import { UserSeeder } from './user.seeder';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [User, Call, QueueEntry, Feedback],
+      entities: [User, Call, QueueEntry, Feedback, Settings],
       synchronize: true,
       dropSchema: true,
       logging: true,
     }),
-    TypeOrmModule.forFeature([User, Call, QueueEntry, Feedback]),
+    TypeOrmModule.forFeature([User, Call, QueueEntry, Feedback, Settings]),
   ],
   providers: [UserSeeder],
 })

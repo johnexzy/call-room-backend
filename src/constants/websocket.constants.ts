@@ -1,8 +1,8 @@
 export const WS_NAMESPACES = {
-  CALLS: 'calls',
-  QUEUE: 'queue',
-  NOTIFICATIONS: 'notifications',
-  ANALYTICS: 'analytics',
+  CALLS: '/calls',
+  QUEUE: '/queue',
+  NOTIFICATIONS: '/notifications',
+  ANALYTICS: '/analytics',
 } as const;
 
 export const WS_EVENTS = {

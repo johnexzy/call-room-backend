@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { User } from '../users/entities/user.entity';
-import { Call } from '../calls/entities/call.entity';
-import { QueueEntry } from '../queue/entities/queue-entry.entity';
+import { User } from '../../entities/user.entity';
+import { Call } from '../../entities/call.entity';
+import { QueueEntry } from '../../entities/queue-entry.entity';
+import { Settings } from '../../entities/settings.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UpdateRepresentativeDto } from './dto/update-representative.dto';
-import { Settings } from './entities/settings.entity';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 
 @Injectable()

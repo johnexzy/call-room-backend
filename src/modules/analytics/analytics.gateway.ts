@@ -4,9 +4,14 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { UseGuards } from '@nestjs/common';
-import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { Server } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import {
+  ExtendedSocket,
+  WSAuthMiddleware,
+} from '../auth/gateway.ts/auth.middleware';
+import { Logger } from '@nestjs/common';
 
 interface MetricsUpdate {
   totalCalls: number;
@@ -31,25 +36,37 @@ interface QualityUpdate {
   namespace: 'analytics',
   cors: {
     origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
-    credentials: true,
   },
 })
 export class AnalyticsGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
+  constructor(
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) {}
+
   @WebSocketServer()
   server: Server;
 
-  private connectedClients: Map<string, Socket> = new Map();
-
-  @UseGuards(WsJwtGuard)
-  handleConnection(client: Socket) {
-    const userId = client.handshake.query.userId as string;
-    this.connectedClients.set(userId, client);
+  afterInit(server: Server) {
+    server.use(WSAuthMiddleware(this.jwtService, this.configService));
+    const dateString = new Date().toLocaleString();
+    const message = `[WebSocket] ${process.pid} - ${dateString} LOG [WebSocketServer] Websocket server successfully started`;
+    this.logger.log(message);
   }
 
-  handleDisconnect(client: Socket) {
-    const userId = client.handshake.query.userId as string;
+  private connectedClients: Map<string, ExtendedSocket> = new Map();
+  private logger = new Logger(AnalyticsGateway.name);
+
+  handleConnection(client: ExtendedSocket) {
+    const userId = client.subId;
+    this.connectedClients.set(userId, client);
+    this.logger.log(`Client connected: ${userId}`);
+  }
+
+  handleDisconnect(client: ExtendedSocket) {
+    const userId = client.subId;
     this.connectedClients.delete(userId);
   }
 
