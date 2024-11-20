@@ -59,8 +59,6 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         callId,
         fromUserId: client.subId,
       });
-    } else {
-      this.logger.warn(`Target client not found: ${targetUserId}`);
     }
   }
 
@@ -74,8 +72,6 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         callId,
         fromUserId: client.subId,
       });
-    } else {
-      this.logger.warn(`Target client not found: ${targetUserId}`);
     }
   }
 
@@ -89,8 +85,6 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         callId,
         fromUserId: client.subId,
       });
-    } else {
-      this.logger.warn(`Target client not found: ${targetUserId}`);
     }
   }
 

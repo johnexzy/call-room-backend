@@ -9,6 +9,7 @@ import { Call } from '../../entities/call.entity';
 import { Feedback } from '../../entities/feedback.entity';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { User } from '../../entities/user.entity';
+import { CallsGateway } from './calls.gateway';
 
 @Injectable()
 export class CallsService {
@@ -19,6 +20,7 @@ export class CallsService {
     private feedbackRepository: Repository<Feedback>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private callsGateway: CallsGateway,
   ) {}
 
   async startCall(customerId: string) {
@@ -51,7 +53,7 @@ export class CallsService {
   async endCall(callId: string, userId: string, notes?: string) {
     const call = await this.callRepository.findOne({
       where: { id: callId },
-      relations: ['representative'],
+      relations: ['representative', 'customer'],
     });
 
     if (!call) {
@@ -69,6 +71,7 @@ export class CallsService {
     if (notes) {
       call.notes = notes;
     }
+    this.callsGateway.notifyCallEnded(call.customer.id);
 
     return this.callRepository.save(call);
   }

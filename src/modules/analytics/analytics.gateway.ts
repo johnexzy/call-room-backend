@@ -12,6 +12,7 @@ import {
   WSAuthMiddleware,
 } from '../auth/gateway.ts/auth.middleware';
 import { Logger } from '@nestjs/common';
+import { WS_NAMESPACES } from 'src/constants/websocket.constants';
 
 interface MetricsUpdate {
   totalCalls: number;
@@ -33,9 +34,10 @@ interface QualityUpdate {
 }
 
 @WebSocketGateway({
-  namespace: 'analytics',
+  namespace: WS_NAMESPACES.ANALYTICS,
   cors: {
     origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    credentials: true,
   },
 })
 export class AnalyticsGateway

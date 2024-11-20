@@ -11,11 +11,13 @@ import { ExtendedSocket } from '../auth/gateway.ts/auth.middleware';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { WSAuthMiddleware } from '../auth/gateway.ts/auth.middleware';
+import { WS_NAMESPACES } from 'src/constants/websocket.constants';
 
 @WebSocketGateway({
-  namespace: 'notifications',
+  namespace: WS_NAMESPACES.NOTIFICATIONS,
   cors: {
     origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    credentials: true,
   },
 })
 export class NotificationsGateway
