@@ -71,9 +71,16 @@ export class CallsService {
     if (notes) {
       call.notes = notes;
     }
+
+    await this.userRepository.update(call.representative.id, {
+      isAvailable: true,
+    });
+
+    await this.callRepository.save(call);
+
     this.callsGateway.notifyCallEnded(call.customer.id);
 
-    return this.callRepository.save(call);
+    return call;
   }
 
   async markCallAsMissed(callId: string) {
