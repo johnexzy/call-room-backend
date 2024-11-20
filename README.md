@@ -1,99 +1,251 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Call Room Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A real-time customer service call management system built with NestJS, featuring WebRTC signaling, WebSocket communication, and queue management.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+### Real-time Communication
+- WebRTC audio calls between customers and representatives
+- WebSocket-based signaling server
+- Real-time queue management
+- Live notifications system
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### Call Management
+- Automatic call assignment
+- Call quality monitoring
+- Call history tracking
+- Call feedback system
 
-## Project setup
+### Queue System
+- Dynamic queue position management
+- Wait time estimation
+- Callback requests
+- Automatic representative assignment
 
-```bash
-$ pnpm install
+### User Management
+- Role-based access control (Customer, Representative, Admin)
+- Representative availability management
+- User profiles and settings
+
+### Analytics
+- Real-time call metrics
+- Queue statistics
+- Quality metrics tracking
+- System performance monitoring
+
+## Tech Stack
+
+- NestJS
+- TypeScript
+- PostgreSQL
+- TypeORM
+- Socket.IO
+- JWT Authentication
+- WebRTC
+- Swagger/OpenAPI
+
+## Prerequisites
+
+- Node.js 18+
+- PostgreSQL 12+
+- pnpm (recommended) or npm
+
+## Environment Setup
+
+Create a `.env` file in the root directory:
+
+```env
+# Server
+PORT=5200
+NODE_ENV=development
+
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=your_password
+DB_NAME=callroom
+
+# JWT
+JWT_SECRET=your_jwt_secret_key
+
+# CORS
+CORS_ORIGINS=http://localhost:3000
 ```
 
-## Compile and run the project
+## Installation
 
 ```bash
-# development
-$ pnpm run start
+# Install dependencies
+pnpm install
 
-# watch mode
-$ pnpm run start:dev
+# Run database migrations
+pnpm typeorm migration:run
 
-# production mode
-$ pnpm run start:prod
+# Seed the database
+pnpm seed
+
+# Start development server
+pnpm start:dev
+
+# Build for production
+pnpm build
+
+# Start production server
+pnpm start:prod
 ```
 
-## Run tests
+## Project Structure
 
+```
+src/
+├── constants/          # Application constants and enums
+├── entities/          # Database entities
+├── interceptors/      # Global interceptors
+├── modules/          # Feature modules
+│   ├── admin/       # Admin management
+│   ├── analytics/   # Analytics and metrics
+│   ├── auth/        # Authentication and authorization
+│   ├── calls/       # Call management
+│   ├── notifications/ # Real-time notifications
+│   ├── queue/       # Queue management
+│   └── users/       # User management
+└── database/        # Database migrations and seeds
+```
+
+## API Documentation
+
+Swagger documentation is available at `/api/docs` when running the server.
+
+### Main Endpoints
+
+#### Authentication
+- POST `/api/v1/auth/login` - User login
+- POST `/api/v1/auth/register` - User registration
+- POST `/api/v1/auth/refresh` - Refresh token
+
+#### Calls
+- GET `/api/v1/calls/active` - Get active call
+- POST `/api/v1/calls/start/:customerId` - Start a call
+- PUT `/api/v1/calls/:id/end` - End a call
+- GET `/api/v1/calls/history` - Get call history
+
+#### Queue
+- POST `/api/v1/queue/join` - Join the queue
+- GET `/api/v1/queue/position` - Get queue position
+- POST `/api/v1/queue/callback` - Request callback
+
+#### Users
+- GET `/api/v1/users/profile` - Get user profile
+- PUT `/api/v1/users/availability` - Update availability
+- PUT `/api/v1/users/profile` - Update profile
+
+## WebSocket Events
+
+### Namespaces
+- `calls` - Call-related events
+- `queue` - Queue updates
+- `notifications` - System notifications
+- `analytics` - Real-time metrics
+
+### Main Events
+```typescript
+WS_EVENTS = {
+  CALLS: {
+    CALL_ASSIGNED: 'call_assigned',
+    CALL_ENDED: 'call_ended',
+    CALL_UPDATE: 'call_update',
+    QUALITY_UPDATE: 'quality_update',
+  },
+  QUEUE: {
+    POSITION_UPDATE: 'position_update',
+    QUEUE_UPDATE: 'queue_update',
+    YOUR_TURN: 'your_turn',
+  },
+  // ... other events
+}
+```
+
+## Database Schema
+
+### Core Entities
+
+#### User
+- Role-based user model (customer, representative, admin)
+- Availability tracking for representatives
+- Call history relationships
+
+#### Call
+- Real-time call status tracking
+- Quality metrics storage
+- Feedback integration
+- Duration tracking
+
+#### QueueEntry
+- Dynamic position management
+- Status tracking
+- Callback request handling
+
+#### Feedback
+- Call rating system
+- Customer comments
+- Quality metrics association
+
+## Development
+
+### Code Style
+- ESLint configuration
+- Prettier formatting
+- TypeScript strict mode
+
+### Testing
 ```bash
-# unit tests
-$ pnpm run test
+# Unit tests
+pnpm test
 
-# e2e tests
-$ pnpm run test:e2e
+# E2E tests
+pnpm test:e2e
 
-# test coverage
-$ pnpm run test:cov
+# Test coverage
+pnpm test:cov
 ```
 
-## Deployment
+### Debugging
+- Source maps enabled
+- Detailed logging
+- Error tracking
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Production Deployment
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Requirements
+- Node.js 18+
+- PostgreSQL 12+
+- PM2 or similar process manager
+- SSL certificate for WebSocket security
 
-```bash
-$ pnpm install -g mau
-$ mau deploy
+### Environment Variables
+Additional production variables:
+```env
+NODE_ENV=production
+SSL_KEY_PATH=/path/to/ssl/key
+SSL_CERT_PATH=/path/to/ssl/cert
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Security Features
+- JWT authentication
+- WebSocket authentication
+- Rate limiting
+- CORS protection
+- Input validation
 
-## Resources
+## Contributing
 
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+This project is licensed under the MIT License - see the LICENSE file for details.
