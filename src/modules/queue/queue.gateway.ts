@@ -10,7 +10,7 @@ import { WS_NAMESPACES, WS_EVENTS } from '../../constants/websocket.constants';
 import { WSAuthMiddleware } from '../auth/gateway.ts/auth.middleware';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { User } from '../users/entities/user.entity';
+import { User } from '@/entities';
 
 export class ExtendedSocket extends Socket {
   user: User;

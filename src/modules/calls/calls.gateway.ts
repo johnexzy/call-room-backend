@@ -102,6 +102,37 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  async notifyCallEndedByAdmin(
+    callId: string,
+    data: {
+      customerId: string;
+      representativeId: string;
+      reason: string;
+    },
+  ) {
+    const customerClient = this.connectedClients.get(data.customerId);
+    const representativeClient = this.connectedClients.get(
+      data.representativeId,
+    );
+
+    const callEndedData = {
+      callId,
+      reason: data.reason,
+    };
+
+    if (customerClient) {
+      customerClient.emit('call_ended', callEndedData);
+    }
+
+    if (representativeClient) {
+      representativeClient.emit('call_ended', callEndedData);
+    }
+
+    // For admin notifications, we'll keep the room-based approach since admins
+    // are handled differently
+    this.server.to('role:admin').emit('call_ended', callEndedData);
+  }
+
   async broadcastCallUpdate() {
     this.server.emit(WS_EVENTS.CALLS.CALL_UPDATE);
   }

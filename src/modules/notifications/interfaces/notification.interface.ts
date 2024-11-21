@@ -1,13 +1,18 @@
-export enum NotificationType {
-  CALL_READY = 'call_ready',
-  CALL_MISSED = 'call_missed',
-  QUEUE_UPDATE = 'queue_update',
-  REPRESENTATIVE_AVAILABLE = 'representative_available',
-}
+export type NotificationType =
+  | 'CALL_INCOMING'
+  | 'CALL_MISSED'
+  | 'QUEUE_UPDATE'
+  | 'FEEDBACK_RECEIVED'
+  | 'SYSTEM_ALERT'
+  | 'PERFORMANCE_UPDATE';
 
-export interface NotificationPayload {
+export interface Notification {
+  id: string;
   type: NotificationType;
   title: string;
   message: string;
-  data?: Record<string, any>;
+  userId: string;
+  read: boolean;
+  data?: Record<string, unknown>;
+  createdAt: Date;
 }

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, DeepPartial } from 'typeorm';
 import { User } from '../../entities/user.entity';
 import { Call } from '../../entities/call.entity';
 import { QueueEntry } from '../../entities/queue-entry.entity';
@@ -13,14 +13,14 @@ import { UpdateSettingsDto } from './dto/update-settings.dto';
 export class AdminService {
   constructor(
     @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private readonly userRepository: Repository<User>,
     @InjectRepository(Call)
-    private callRepository: Repository<Call>,
+    private readonly callRepository: Repository<Call>,
     @InjectRepository(QueueEntry)
-    private queueRepository: Repository<QueueEntry>,
+    private readonly queueRepository: Repository<QueueEntry>,
     @InjectRepository(Settings)
-    private settingsRepository: Repository<Settings>,
-    private notificationsService: NotificationsService,
+    private readonly settingsRepository: Repository<Settings>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async getRepresentatives() {
@@ -42,7 +42,11 @@ export class AdminService {
     await this.userRepository.update(id, updateDto);
 
     if (updateDto.isAvailable) {
-      await this.notificationsService.notifyRepresentativeAvailable(id);
+      await this.notificationsService.sendNotification(id, {
+        type: 'SYSTEM_ALERT',
+        title: 'Status Update',
+        message: 'You are now marked as available for calls',
+      });
     }
 
     return this.userRepository.findOne({ where: { id } });
@@ -128,7 +132,10 @@ export class AdminService {
 
   async updateSettings(updateDto: UpdateSettingsDto) {
     const settings = await this.getSettings();
-    const updatedSettings = this.settingsRepository.merge(settings, updateDto);
+    const updatedSettings = this.settingsRepository.merge(
+      settings,
+      updateDto as DeepPartial<Settings>,
+    );
     return this.settingsRepository.save(updatedSettings);
   }
 }

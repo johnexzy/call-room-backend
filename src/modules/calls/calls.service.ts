@@ -5,11 +5,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Call } from '../../entities/call.entity';
-import { Feedback } from '../../entities/feedback.entity';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
-import { User } from '../../entities/user.entity';
+import { User, Call, Feedback } from '@/entities';
 import { CallsGateway } from './calls.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CallsService {
@@ -21,6 +20,7 @@ export class CallsService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private callsGateway: CallsGateway,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async startCall(customerId: string) {
@@ -83,6 +83,27 @@ export class CallsService {
     return call;
   }
 
+  async endCallByAdmin(callId: string) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+      relations: ['customer', 'representative'],
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    call.endTime = new Date();
+    call.status = 'completed';
+    await this.callRepository.save(call);
+
+    this.callsGateway.notifyCallEndedByAdmin(callId, {
+      customerId: call.customer.id,
+      representativeId: call.representative.id,
+      reason: 'Ended by admin',
+    });
+  }
+
   async markCallAsMissed(callId: string) {
     const call = await this.callRepository.findOne({
       where: { id: callId },
@@ -97,17 +118,44 @@ export class CallsService {
     return this.callRepository.save(call);
   }
 
-  async getCallHistory(userId: string, role: string) {
-    const where =
-      role === 'customer'
-        ? { customer: { id: userId } }
-        : { representative: { id: userId } };
+  async getCallHistory(
+    page: string | number,
+    limit: string | number,
+    status?: string,
+  ) {
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
 
-    return this.callRepository.find({
-      where,
-      relations: ['customer', 'representative', 'feedback'],
-      order: { startTime: 'DESC' },
-    });
+    const queryBuilder = this.callRepository
+      .createQueryBuilder('call')
+      .leftJoinAndSelect('call.customer', 'customer')
+      .leftJoinAndSelect('call.representative', 'representative')
+      .leftJoinAndSelect('call.feedback', 'feedback')
+      .orderBy('call.startTime', 'DESC');
+
+    if (status) {
+      queryBuilder.andWhere('call.status = :status', { status });
+    }
+
+    const [calls, total] = await queryBuilder
+      .skip(skip)
+      .take(limitNum)
+      .getManyAndCount();
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    return {
+      data: calls,
+      meta: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPreviousPage: pageNum > 1,
+      },
+    };
   }
 
   async addFeedback(callId: string, createFeedbackDto: CreateFeedbackDto) {

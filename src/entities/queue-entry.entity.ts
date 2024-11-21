@@ -37,4 +37,19 @@ export class QueueEntry {
     default: 'waiting',
   })
   status: string;
+
+  @Column({ type: 'int', default: 0 })
+  priority: number;
+
+  @Column({ type: 'int', nullable: true })
+  estimatedHandleTime: number;
+
+  @Column({ type: 'int', nullable: true })
+  customerValue: number;
+
+  @Column('jsonb', { nullable: true })
+  skillsRequired: string[];
+
+  @Column({ type: 'uuid', nullable: true })
+  preferredAgent: string;
 }
