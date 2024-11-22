@@ -2,73 +2,38 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ConfigService } from '@nestjs/config';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import morgan from 'morgan';
-import { complianceLogger } from './config/logger.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  const configService = app.get(ConfigService);
 
-  // Enable validation pipes
-  app.useGlobalPipes(new ValidationPipe());
+  // Enable CORS
+  app.enableCors({
+    origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
+    credentials: true,
+  });
 
-  // Enable versioning and set global prefix
+  // Enable API versioning
   app.enableVersioning({
     type: VersioningType.URI,
-    prefix: 'v',
-  });
-  app.setGlobalPrefix('api');
-
-  // Configure CORS
-  app.enableCors({
-    origin: configService.get('CORS_ORIGINS', 'http://localhost:3000'),
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    credentials: true,
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'Accept',
-      'Origin',
-    ],
   });
 
-  // Swagger configuration
+  // Enable validation
+  app.useGlobalPipes(new ValidationPipe());
+
+  // Swagger documentation
   const config = new DocumentBuilder()
-    .setTitle('Callroom API')
-    .setDescription('The Callroom API documentation')
+    .setTitle('Call Room API')
+    .setDescription('The Call Room API description')
     .setVersion('1.0')
     .addBearerAuth()
-    .addTag('auth', 'Authentication endpoints')
-    .addTag('queue', 'Queue management endpoints')
-    .addTag('calls', 'Call handling endpoints')
     .build();
-
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api', app, document);
 
-  // Add security middleware
-  app.use(helmet());
-  app.use(
-    rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // limit each IP to 100 requests per windowMs
-    }),
-  );
-
-  // Add compliance logging with proper morgan configuration
-  app.use(
-    morgan('combined', {
-      stream: {
-        write: (message: string) => complianceLogger.info(message.trim()),
-      },
-      skip: () => process.env.NODE_ENV !== 'production',
-    }),
-  );
-
-  await app.listen(process.env.PORT || 5200);
+  // Get port from environment variable for Cloud Run
+  const port = process.env.PORT || 8080;
+  
+  await app.listen(port, '0.0.0.0');
+  console.log(`Application is running on: ${await app.getUrl()}`);
 }
 bootstrap();

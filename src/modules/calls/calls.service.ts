@@ -187,4 +187,37 @@ export class CallsService {
 
     return call.qualityMetrics;
   }
+
+  async getCallById(id: string) {
+    const call = await this.callRepository.findOne({
+      where: { id },
+      relations: ['customer', 'representative', 'transcripts'],
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    return {
+      id: call.id,
+      customer: {
+        id: call.customer.id,
+        firstName: call.customer.firstName,
+        lastName: call.customer.lastName,
+      },
+      representative: {
+        id: call.representative.id,
+        firstName: call.representative.firstName,
+        lastName: call.representative.lastName,
+      },
+      startTime: call.startTime,
+      endTime: call.endTime,
+      status: call.status,
+      transcripts: call.transcripts.map((transcript) => ({
+        text: transcript.text,
+        speaker: transcript.speaker,
+        timestamp: transcript.timestamp,
+      })),
+    };
+  }
 }

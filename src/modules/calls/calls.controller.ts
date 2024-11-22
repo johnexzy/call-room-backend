@@ -92,4 +92,11 @@ export class CallsController {
   async emergencyEndCall(@Param('id') id: string) {
     return this.callsService.endCallByAdmin(id);
   }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get call details by ID' })
+  @ApiParam({ name: 'id', description: 'Call ID' })
+  async getCallById(@Param('id') id: string) {
+    return this.callsService.getCallById(id);
+  }
 }
