@@ -18,6 +18,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 
 @ApiTags('calls')
 @Controller({
@@ -84,5 +85,18 @@ export class CallsController {
   @ApiOperation({ summary: 'Get call quality metrics' })
   async getCallQualityMetrics(@Param('id') id: string) {
     return this.callsService.getQualityMetrics(id);
+  }
+
+  @UseGuards(AdminAuthGuard)
+  @Post(':id/admin-end')
+  async emergencyEndCall(@Param('id') id: string) {
+    return this.callsService.endCallByAdmin(id);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get call details by ID' })
+  @ApiParam({ name: 'id', description: 'Call ID' })
+  async getCallById(@Param('id') id: string) {
+    return this.callsService.getCallById(id);
   }
 }

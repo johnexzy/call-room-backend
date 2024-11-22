@@ -1,23 +1,31 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { Call } from './call.entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { QueueEntry } from './queue-entry.entity';
+import { Call } from './call.entity';
+import { Notification } from './notification.entity';
 
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true, length: 255 })
-  email: string;
-
-  @Column({ select: false })
-  password: string;
-
-  @Column({ length: 100 })
+  @Column()
   firstName: string;
 
-  @Column({ length: 100 })
+  @Column()
   lastName: string;
+
+  @Column({ unique: true })
+  email: string;
+
+  @Column()
+  password: string;
 
   @Column({
     type: 'enum',
@@ -29,12 +37,35 @@ export class User {
   @Column({ default: false })
   isAvailable: boolean;
 
+  @Column('jsonb', { nullable: true })
+  preferences: Record<string, unknown>;
+
+  @Column('jsonb', { nullable: true })
+  interactionHistory: Array<{
+    timestamp: Date;
+    type: string;
+    details: string;
+    satisfaction?: number;
+  }>;
+
+  @Column({ type: 'int', default: 0 })
+  customerValue: number;
+
+  @OneToMany(() => QueueEntry, (queueEntry) => queueEntry.user)
+  queueEntries: QueueEntry[];
+
   @OneToMany(() => Call, (call) => call.customer)
   customerCalls: Call[];
 
   @OneToMany(() => Call, (call) => call.representative)
   representativeCalls: Call[];
 
-  @OneToMany(() => QueueEntry, (queueEntry) => queueEntry.user)
-  queueEntries: QueueEntry[];
+  @OneToMany(() => Notification, (notification) => notification.user)
+  notifications: Notification[];
+
+  @CreateDateColumn({ type: 'timestamp' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ type: 'timestamp' })
+  updatedAt: Date;
 }

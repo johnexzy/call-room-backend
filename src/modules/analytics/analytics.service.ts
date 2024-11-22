@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { Call } from '../../entities/call.entity';
-import { Feedback } from '../../entities/feedback.entity';
-import { QueueEntry } from '../../entities/queue-entry.entity';
+import { Call, Feedback, QueueEntry } from '../../entities';
 import { subDays } from 'date-fns';
 
 type TimeframeType = 'day' | 'week' | 'month';
@@ -12,11 +10,11 @@ type TimeframeType = 'day' | 'week' | 'month';
 export class AnalyticsService {
   constructor(
     @InjectRepository(Call)
-    private callsRepository: Repository<Call>,
+    private readonly callsRepository: Repository<Call>,
     @InjectRepository(Feedback)
-    private feedbackRepository: Repository<Feedback>,
+    private readonly feedbackRepository: Repository<Feedback>,
     @InjectRepository(QueueEntry)
-    private queueRepository: Repository<QueueEntry>,
+    private readonly queueRepository: Repository<QueueEntry>,
   ) {}
 
   private getDateRange(timeframe: TimeframeType) {

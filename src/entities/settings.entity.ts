@@ -10,23 +10,26 @@ export class Settings {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'int', default: 50 })
-  maxQueueSize: number;
+  @Column('jsonb', { nullable: true })
+  queueSettings: {
+    maxWaitTime: number;
+    autoCallbackThreshold: number;
+    priorityLevels: number;
+  };
 
-  @Column({ type: 'int', default: 30 })
-  maxWaitTime: number;
+  @Column('jsonb', { nullable: true })
+  callSettings: {
+    maxDuration: number;
+    recordCalls: boolean;
+    transcriptionEnabled: boolean;
+  };
 
-  @Column({ default: true })
-  enableCallbacks: boolean;
-
-  @Column({ default: true })
-  enableAutoAssignment: boolean;
-
-  @Column({ type: 'time', default: '09:00' })
-  workingHoursStart: string;
-
-  @Column({ type: 'time', default: '17:00' })
-  workingHoursEnd: string;
+  @Column('jsonb', { nullable: true })
+  notificationSettings: {
+    emailNotifications: boolean;
+    smsNotifications: boolean;
+    pushNotifications: boolean;
+  };
 
   @UpdateDateColumn()
   updatedAt: Date;

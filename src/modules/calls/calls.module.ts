@@ -1,35 +1,30 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { Call } from '../../entities/call.entity';
-import { Feedback } from '../../entities/feedback.entity';
-import { User } from '../../entities/user.entity';
 import { CallsService } from './calls.service';
 import { CallsController } from './calls.controller';
-import { UsersModule } from '../users/users.module';
-import { QueueModule } from '../queue/queue.module';
-import { NotificationsModule } from '../notifications/notifications.module';
 import { CallsGateway } from './calls.gateway';
+import { Call, User, Feedback } from '../../entities';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Call, Feedback, User]),
+    TypeOrmModule.forFeature([Call, User, Feedback]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '15m' },
+        secret: configService.get('JWT_SECRET'),
+        signOptions: {
+          expiresIn: configService.get('JWT_EXPIRES_IN', '1d'),
+        },
       }),
       inject: [ConfigService],
     }),
-    ConfigModule,
-    UsersModule,
-    QueueModule,
     NotificationsModule,
   ],
   providers: [CallsService, CallsGateway],
   controllers: [CallsController],
-  exports: [CallsService, CallsGateway],
+  exports: [CallsService],
 })
 export class CallsModule {}

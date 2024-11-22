@@ -7,20 +7,20 @@ import {
 } from 'typeorm';
 import { Call } from './call.entity';
 
-@Entity('feedback')
-export class Feedback {
+@Entity('transcripts')
+export class Transcript {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Call, (call) => call.feedback)
+  @ManyToOne(() => Call, (call) => call.transcripts)
   call: Call;
 
-  @Column()
-  rating: number;
+  @Column('text')
+  text: string;
 
-  @Column({ nullable: true })
-  comment: string;
+  @Column()
+  speaker: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  timestamp: Date;
 }

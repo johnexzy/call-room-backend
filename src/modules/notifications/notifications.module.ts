@@ -1,11 +1,11 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationsService } from './notifications.service';
 import { NotificationsGateway } from './notifications.gateway';
-import { QueueModule } from '../queue/queue.module';
-import { JwtModule } from '@nestjs/jwt';
+import { Notification } from '../../entities/notification.entity';
 
 @Module({
-  imports: [forwardRef(() => QueueModule), JwtModule],
+  imports: [TypeOrmModule.forFeature([Notification])],
   providers: [NotificationsService, NotificationsGateway],
   exports: [NotificationsService],
 })

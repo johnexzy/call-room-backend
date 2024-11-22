@@ -1,7 +1,7 @@
 import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
-import { User } from 'src/modules/users/entities/user.entity';
+import { User } from '@/entities';
 
 // socket data
 export class ExtendedSocket extends Socket {

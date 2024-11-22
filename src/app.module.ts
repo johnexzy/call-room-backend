@@ -10,11 +10,9 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
-import { User } from './entities/user.entity';
-import { Call } from './entities/call.entity';
-import { QueueEntry } from './entities/queue-entry.entity';
-import { Feedback } from './entities/feedback.entity';
-import { Settings } from './entities/settings.entity';
+import { FeedbackModule } from './modules/feedback/feedback.module';
+import { AIModule } from './modules/ai/ai.module';
+import { KnowledgeBaseModule } from './modules/knowledge/knowledge-base.module';
 
 @Module({
   imports: [
@@ -30,8 +28,10 @@ import { Settings } from './entities/settings.entity';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [User, Call, QueueEntry, Feedback, Settings],
-        synchronize: configService.get('NODE_ENV') !== 'production',
+        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
+        migrationsRun: true,
+        synchronize: false,
         logging: configService.get('NODE_ENV') === 'development',
         ssl:
           configService.get('NODE_ENV') === 'production'
@@ -47,6 +47,9 @@ import { Settings } from './entities/settings.entity';
     NotificationsModule,
     AnalyticsModule,
     AdminModule,
+    FeedbackModule,
+    AIModule,
+    KnowledgeBaseModule,
   ],
   providers: [
     {

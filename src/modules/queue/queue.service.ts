@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { QueueEntry } from '../../entities/queue-entry.entity';
-import { User } from '../../entities/user.entity';
-import { Call } from '../../entities/call.entity';
+import { QueueEntry, User, Call } from '../../entities';
 import { QueueGateway } from './queue.gateway';
 import { CallsGateway } from '../calls/calls.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -12,21 +10,19 @@ import { NotificationsService } from '../notifications/notifications.service';
 export class QueueService {
   constructor(
     @InjectRepository(QueueEntry)
-    private queueRepository: Repository<QueueEntry>,
+    private readonly queueRepository: Repository<QueueEntry>,
     @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private readonly userRepository: Repository<User>,
     @InjectRepository(Call)
-    private callRepository: Repository<Call>,
-    private queueGateway: QueueGateway,
-    private callsGateway: CallsGateway,
-    private notificationsService: NotificationsService,
+    private readonly callRepository: Repository<Call>,
+    private readonly queueGateway: QueueGateway,
+    private readonly callsGateway: CallsGateway,
+    private readonly notificationsService: NotificationsService,
   ) {
-    // Check for available representatives every 10 seconds
     setInterval(() => this.processQueue(), 10000);
   }
 
   async addToQueue(userId: string) {
-    // First, check if user is already in queue
     const existingEntry = await this.queueRepository.findOne({
       where: { user: { id: userId }, status: 'waiting' },
     });
@@ -35,7 +31,6 @@ export class QueueService {
       return existingEntry;
     }
 
-    // Get the last position in queue
     const lastEntry = await this.queueRepository.findOne({
       where: { status: 'waiting' },
       order: { position: 'DESC' },
@@ -67,18 +62,14 @@ export class QueueService {
       return { estimatedMinutes: 0 };
     }
 
-    // Get number of available representatives
     const availableReps = await this.userRepository.count({
       where: { role: 'representative', isAvailable: true },
     });
 
-    // Get number of people ahead in queue
     const peopleAhead = entry.position - 1;
 
-    // Base estimate: 5 minutes per person
     let estimatedMinutes = peopleAhead * 5;
 
-    // Adjust based on available representatives
     if (availableReps > 0) {
       estimatedMinutes = Math.ceil(estimatedMinutes / availableReps);
     }
@@ -93,7 +84,6 @@ export class QueueService {
       relations: ['user'],
     });
 
-    // Update positions and notify clients
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
       const newPosition = i + 1;
@@ -114,30 +104,21 @@ export class QueueService {
   }
 
   private async processQueue() {
-    // Find available representatives
     const availableRepresentatives = await this.userRepository.find({
       where: { role: 'representative', isAvailable: true },
     });
 
-    if (availableRepresentatives.length === 0) {
-      return;
-    }
+    if (availableRepresentatives.length === 0) return;
 
-    // Get next customer in queue
     const nextInQueue = await this.queueRepository.findOne({
       where: { status: 'waiting' },
       order: { position: 'ASC' },
       relations: ['user'],
     });
 
-    if (!nextInQueue) {
-      return;
-    }
+    if (!nextInQueue) return;
 
-    // Assign to first available representative
     const representative = availableRepresentatives[0];
-
-    // Create call
     const call = this.callRepository.create({
       customer: nextInQueue.user,
       representative,
@@ -145,20 +126,21 @@ export class QueueService {
     });
     await this.callRepository.save(call);
 
-    // Update queue entry
     nextInQueue.status = 'connected';
     await this.queueRepository.save(nextInQueue);
 
-    // Update representative availability
     representative.isAvailable = false;
     await this.userRepository.save(representative);
 
-    // Notify all parties
     await this.queueGateway.notifyTurn(nextInQueue.user.id);
     await this.callsGateway.notifyCallAssigned(representative.id, call);
-    await this.notificationsService.notifyCallReady(nextInQueue.user.id);
+    await this.notificationsService.sendCallAlert(nextInQueue.user.id, {
+      type: 'incoming',
+      callId: call.id,
+      customerName: `${nextInQueue.user.firstName} ${nextInQueue.user.lastName}`,
+      priority: nextInQueue.priority || 0,
+    });
 
-    // Update queue positions
     await this.updateQueuePositions();
   }
 }

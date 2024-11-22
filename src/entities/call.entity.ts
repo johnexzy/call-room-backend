@@ -2,13 +2,14 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
-  ManyToOne,
-  OneToMany,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Feedback } from './feedback.entity';
+import { Transcript } from './transcript.entity';
 
 @Entity('calls')
 export class Call {
@@ -29,12 +30,12 @@ export class Call {
 
   @Column({
     type: 'enum',
-    enum: ['active', 'completed', 'missed'],
+    enum: ['active', 'completed', 'missed', 'cancelled'],
     default: 'active',
   })
   status: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column('jsonb', { nullable: true })
   qualityMetrics: {
     audioQuality: {
       packetLoss: number;
@@ -53,9 +54,30 @@ export class Call {
   @OneToMany(() => Feedback, (feedback) => feedback.call)
   feedback: Feedback[];
 
+  @OneToMany(() => Transcript, (transcript) => transcript.call)
+  transcripts: Transcript[];
+
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @Column({ type: 'interval', nullable: true })
-  duration?: string;
+  // Utility methods
+  calculateDuration(): number {
+    if (!this.endTime) return 0;
+    return (this.endTime.getTime() - this.startTime.getTime()) / 1000;
+  }
+
+  isActive(): boolean {
+    return this.status === 'active';
+  }
+
+  canBeRated(): boolean {
+    return this.status === 'completed' && !this.feedback?.length;
+  }
+
+  updateQualityMetrics(metrics: Partial<Call['qualityMetrics']>) {
+    this.qualityMetrics = {
+      ...this.qualityMetrics,
+      ...metrics,
+    };
+  }
 }
