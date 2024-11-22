@@ -64,6 +64,9 @@ WORKDIR /usr/src/app
 COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=build /usr/src/app/dist ./dist
 
+# Expose port
+EXPOSE 8080
+
 # Set NODE_ENV environment variable
 ENV NODE_ENV production
 
