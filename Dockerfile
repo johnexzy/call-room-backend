@@ -1,46 +1,74 @@
-# Build stage
-FROM node:20-alpine AS builder
+###################
+# BUILD FOR LOCAL DEVELOPMENT
+###################
 
-WORKDIR /app
+FROM node:18-alpine AS development
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
 
-# Install pnpm
+# Create app directory
+WORKDIR /usr/src/app
+
+# Install pnpm globally
 RUN npm install -g pnpm
+
+# Copy application dependency manifests
+COPY --chown=node:node package*.json ./
 
 # Install dependencies
 RUN pnpm install
 
-# Copy source code
-COPY . .
+# Bundle app source
+COPY --chown=node:node . .
 
-# Build the application
-RUN pnpm build
+# Use the node user from the image (instead of the root user)
+USER node
 
-# Production stage
-FROM node:20-alpine
+###################
+# BUILD FOR PRODUCTION
+###################
 
-WORKDIR /app
+FROM node:18-alpine AS build
 
-# Install Cloud SQL Auth Proxy
-ADD https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 /cloud_sql_proxy
-RUN chmod +x /cloud_sql_proxy
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+WORKDIR /usr/src/app
 
-# Install pnpm
+# Install pnpm globally
 RUN npm install -g pnpm
 
-# Install production dependencies only
-RUN pnpm install --prod
+COPY --chown=node:node package*.json ./
 
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
+# Copy node_modules from development stage
+COPY --chown=node:node --from=development /usr/src/app/node_modules ./node_modules
 
-# Expose port
-EXPOSE 8080
+COPY --chown=node:node . .
 
-# Start Cloud SQL Proxy and NestJS app
-CMD ["/cloud_sql_proxy", "gen-lang-client-0577225072:us-central1:example-instance", "&", "node", "dist/main"]
+# Build the application
+RUN pnpm run build
+
+# Set NODE_ENV environment variable
+ENV NODE_ENV production
+
+# Install production dependencies and prune pnpm store
+RUN pnpm install
+
+
+###################
+# PRODUCTION
+###################
+
+FROM node:18-alpine AS production
+
+WORKDIR /usr/src/app
+
+# Copy the bundled code from the build stage to the production image
+COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
+COPY --chown=node:node --from=build /usr/src/app/dist ./dist
+
+# Set NODE_ENV environment variable
+ENV NODE_ENV production
+
+# Use the node user from the image (instead of the root user)
+USER node
+
+# Start the server using the production build
+CMD ["node", "dist/main.js"]

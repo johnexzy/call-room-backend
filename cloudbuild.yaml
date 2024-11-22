@@ -1,14 +1,14 @@
 substitutions:
-  _INSTANCE_CONNECTION_NAME: "gen-lang-client-0577225072:us-central1:example-instance"
+  _INSTANCE_CONNECTION_NAME: "$_INSTANCE_CONNECTION_NAME"
 
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/gen-lang-client-0577225072/call-room-backend', '.']
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/call-room-backend:$COMMIT_SHA', '.']
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/gen-lang-client-0577225072/call-room-backend']
+    args: ['push', 'gcr.io/$PROJECT_ID/call-room-backend:$COMMIT_SHA']
   
   # Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -18,16 +18,11 @@ steps:
       - 'deploy'
       - 'call-room-backend'
       - '--image'
-      - 'gcr.io/gen-lang-client-0577225072/call-room-backend'
+      - 'gcr.io/$PROJECT_ID/call-room-backend:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--port'
-      - '8080'
       - '--add-cloudsql-instances'
-      - 'gen-lang-client-0577225072:us-central1:example-instance'
+      - '$_INSTANCE_CONNECTION_NAME'
 
 images:
-  - 'gcr.io/gen-lang-client-0577225072/call-room-backend'
+  - 'gcr.io/$PROJECT_ID/call-room-backend:$COMMIT_SHA'
