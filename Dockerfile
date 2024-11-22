@@ -78,5 +78,5 @@ EXPOSE 8080
 USER node
 
 # Start Cloud SQL Auth Proxy and the application
-CMD ./cloud_sql_proxy ${INSTANCE_CONNECTION_NAME} & \
+CMD ./cloud_sql_proxy gen-lang-client-0577225072:us-central1:example-instance & \
     node dist/main.js
