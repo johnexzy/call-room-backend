@@ -1,3 +1,6 @@
+substitutions:
+  _INSTANCE_CONNECTION_NAME: "gen-lang-client-0577225072:us-central1:example-instance"
+
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
@@ -23,8 +26,8 @@ steps:
       - '--allow-unauthenticated'
       - '--port'
       - '8080'
-      - '--set-env-vars'
-      - 'NODE_ENV=production'
+      - '--add-cloudsql-instances'
+      - 'gen-lang-client-0577225072:us-central1:example-instance'
 
 images:
-  - 'gcr.io/gen-lang-client-0577225072/call-room-backend' 
+  - 'gcr.io/gen-lang-client-0577225072/call-room-backend'

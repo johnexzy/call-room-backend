@@ -23,6 +23,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install Cloud SQL Auth Proxy
+ADD https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 /cloud_sql_proxy
+RUN chmod +x /cloud_sql_proxy
+
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
@@ -38,5 +42,5 @@ COPY --from=builder /app/dist ./dist
 # Expose port
 EXPOSE 8080
 
-# Start the server
-CMD ["node", "dist/main"] 
+# Start Cloud SQL Proxy and NestJS app
+CMD ["/cloud_sql_proxy", "gen-lang-client-0577225072:us-central1:example-instance", "&", "node", "dist/main"]

@@ -3,7 +3,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class CreateTranscriptsTable1700000000005 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      CREATE TABLE "transcripts" (
+      CREATE TABLE IF NOT EXISTS "transcripts" (
         "id" uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
         "text" text NOT NULL,
         "speaker" character varying NOT NULL,
@@ -11,8 +11,8 @@ export class CreateTranscriptsTable1700000000005 implements MigrationInterface {
         "callId" uuid REFERENCES "calls"("id") ON DELETE CASCADE
       );
 
-      CREATE INDEX "IDX_transcripts_call_id" ON "transcripts" ("callId");
-      CREATE INDEX "IDX_transcripts_timestamp" ON "transcripts" ("timestamp");
+      CREATE INDEX IF NOT EXISTS "IDX_transcripts_call_id" ON "transcripts" ("callId");
+      CREATE INDEX IF NOT EXISTS "IDX_transcripts_timestamp" ON "transcripts" ("timestamp");
     `);
   }
 
