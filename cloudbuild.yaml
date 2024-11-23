@@ -28,8 +28,6 @@ steps:
       - '--allow-unauthenticated'
       - '--port'
       - '8080'
-      - '--add-cloudsql-instances'
-      - '$_INSTANCE_CONNECTION_NAME'
 
 images:
   - 'gcr.io/$PROJECT_ID/call-room-backend:$COMMIT_SHA'
