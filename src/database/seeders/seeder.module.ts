@@ -36,7 +36,10 @@ import { UserSeeder } from './user.seeder';
       synchronize: true,
       dropSchema: true,
       logging: true,
-      ssl: false,
+      ssl:
+        process.env.NODE_ENV === 'production'
+          ? { rejectUnauthorized: false }
+          : false,
     }),
     TypeOrmModule.forFeature([
       User,

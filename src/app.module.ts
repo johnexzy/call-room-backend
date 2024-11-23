@@ -33,7 +33,10 @@ import { KnowledgeBaseModule } from './modules/knowledge/knowledge-base.module';
         migrationsRun: true,
         synchronize: false,
         logging: configService.get('NODE_ENV') === 'development',
-        ssl: false,
+        ssl:
+          configService.get('NODE_ENV') === 'production'
+            ? { rejectUnauthorized: false }
+            : false,
       }),
       inject: [ConfigService],
     }),
