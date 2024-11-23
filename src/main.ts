@@ -12,6 +12,9 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Set global prefix
+  app.setGlobalPrefix('api');
+
   // Enable API versioning
   app.enableVersioning({
     type: VersioningType.URI,
@@ -28,11 +31,9 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api/docs', app, document);
 
-  // Get port from environment variable for Cloud Run
   const port = process.env.PORT || 8080;
-
   await app.listen(port, '0.0.0.0');
   console.log(`Application is running on: ${await app.getUrl()}`);
 }
