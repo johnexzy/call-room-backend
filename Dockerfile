@@ -4,6 +4,7 @@
 
 FROM node:18-alpine AS development
 
+
 # Create app directory
 WORKDIR /usr/src/app
 
@@ -22,12 +23,12 @@ COPY --chown=node:node . .
 # Use the node user from the image (instead of the root user)
 USER node
 
-
 ###################
 # BUILD FOR PRODUCTION
 ###################
 
 FROM node:18-alpine AS build
+
 
 WORKDIR /usr/src/app
 
@@ -48,7 +49,7 @@ RUN pnpm run build
 ENV NODE_ENV production
 
 # Install production dependencies and prune pnpm store
-RUN pnpm install --prod
+RUN pnpm install
 
 
 ###################
@@ -59,24 +60,18 @@ FROM node:18-alpine AS production
 
 WORKDIR /usr/src/app
 
-# Install pnpm and curl for downloading Cloud SQL Auth Proxy
-RUN npm install -g pnpm && apk add --no-cache curl
-
 # Copy the bundled code from the build stage to the production image
 COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
 COPY --chown=node:node --from=build /usr/src/app/dist ./dist
 
-# Download the Cloud SQL Auth Proxy
-RUN curl -o cloud_sql_proxy https://dl.google.com/cloudsql/cloud_sql_proxy.linux.amd64 && \
-    chmod +x cloud_sql_proxy
-
-# Expose the application port
+# Expose port
 EXPOSE 8080
 
+# Set NODE_ENV environment variable
+ENV NODE_ENV production
 
 # Use the node user from the image (instead of the root user)
 USER node
 
-# Start Cloud SQL Auth Proxy and the application
-CMD ./cloud_sql_proxy gen-lang-client-0577225072:us-central1:example-instance & \
-    node dist/main.js
+# Start the server using the production build
+CMD ["node", "dist/main.js"]
