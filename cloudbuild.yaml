@@ -25,13 +25,9 @@ steps:
       - 'gcr.io/$PROJECT_ID/call-room-backend:$COMMIT_SHA'
       - '--region'
       - 'us-central1'
-      - '--platform'
-      - 'managed'
       - '--allow-unauthenticated'
       - '--port'
       - '8080'
-      - '--timeout'
-      - '300s'
       - '--add-cloudsql-instances'
       - '$_INSTANCE_CONNECTION_NAME'
 
