@@ -6,7 +6,7 @@ import { Call } from '../../entities/call.entity';
 import { QueueService } from './queue.service';
 import { QueueController } from './queue.controller';
 import { QueueGateway } from './queue.gateway';
-import { CallsGateway } from '../calls/calls.gateway';
+import { CallsModule } from '../calls/calls.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { JwtModule } from '@nestjs/jwt';
 
@@ -15,8 +15,9 @@ import { JwtModule } from '@nestjs/jwt';
     TypeOrmModule.forFeature([QueueEntry, User, Call]),
     NotificationsModule,
     JwtModule,
+    CallsModule,
   ],
-  providers: [QueueService, QueueGateway, CallsGateway],
+  providers: [QueueService, QueueGateway],
   controllers: [QueueController],
   exports: [QueueService],
 })

@@ -7,6 +7,7 @@ import {
   UseGuards,
   Request,
   Put,
+  Res,
 } from '@nestjs/common';
 import { CallsService } from './calls.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -19,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { Response } from 'express';
 
 @ApiTags('calls')
 @Controller({
@@ -98,5 +100,56 @@ export class CallsController {
   @ApiParam({ name: 'id', description: 'Call ID' })
   async getCallById(@Param('id') id: string) {
     return this.callsService.getCallById(id);
+  }
+
+  @Post(':id/notes')
+  @ApiOperation({ summary: 'Add note to call' })
+  async addNote(@Param('id') id: string, @Body() body: { content: string }) {
+    return this.callsService.addNote(id, body.content);
+  }
+
+  @Get(':id/notes')
+  @ApiOperation({ summary: 'Get call notes' })
+  async getNotes(@Param('id') id: string) {
+    return this.callsService.getNotes(id);
+  }
+
+  @Post(':id/recording/start')
+  @ApiOperation({ summary: 'Start call recording' })
+  async startRecording(@Param('id') id: string) {
+    return this.callsService.startRecording(id);
+  }
+
+  @Post(':id/recording/stop')
+  @ApiOperation({ summary: 'Stop call recording' })
+  async stopRecording(@Param('id') id: string) {
+    return this.callsService.stopRecording(id);
+  }
+
+  @Get(':id/recording/download')
+  @ApiOperation({ summary: 'Download call recording' })
+  async downloadRecording(@Param('id') id: string, @Res() res: Response) {
+    const recording = await this.callsService.getRecording(id);
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="call-${id}.mp3"`,
+    );
+    return res.send(recording);
+  }
+
+  @Get(':id/recording/url')
+  @ApiOperation({ summary: 'Get signed URL for recording download' })
+  async getRecordingUrl(@Param('id') id: string) {
+    return this.callsService.getRecordingUrl(id);
+  }
+
+  @Get(':id/recording/long-url')
+  @UseGuards(AdminAuthGuard)
+  @ApiOperation({
+    summary: 'Get long-lived URL for recording download (Admin only)',
+  })
+  async getLongLivedRecordingUrl(@Param('id') id: string) {
+    return this.callsService.getLongLivedRecordingUrl(id);
   }
 }

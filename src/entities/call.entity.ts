@@ -48,7 +48,7 @@ export class Call {
     };
   };
 
-  @Column({ type: 'text', nullable: true })
+  @Column('text', { nullable: true })
   notes: string;
 
   @OneToMany(() => Feedback, (feedback) => feedback.call)
@@ -59,6 +59,16 @@ export class Call {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({
+    type: 'enum',
+    enum: ['not_started', 'recording', 'completed', 'failed'],
+    default: 'not_started',
+  })
+  recordingStatus: string;
+
+  @Column({ nullable: true })
+  recordingUrl: string;
 
   // Utility methods
   calculateDuration(): number {

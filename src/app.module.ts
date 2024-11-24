@@ -13,6 +13,9 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { AIModule } from './modules/ai/ai.module';
 import { KnowledgeBaseModule } from './modules/knowledge/knowledge-base.module';
+import { StorageModule } from './modules/storage/storage.module';
+import { WebRTCModule } from './modules/webrtc/webrtc.module';
+import { RecordingModule } from './modules/recording/recording.module';
 
 @Module({
   imports: [
@@ -50,6 +53,9 @@ import { KnowledgeBaseModule } from './modules/knowledge/knowledge-base.module';
     FeedbackModule,
     AIModule,
     KnowledgeBaseModule,
+    StorageModule,
+    WebRTCModule,
+    RecordingModule,
   ],
   providers: [
     {
