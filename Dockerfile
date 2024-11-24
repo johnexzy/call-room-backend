@@ -4,6 +4,8 @@
 
 FROM node:18-alpine AS development
 
+# Install FFmpeg
+RUN apk add --no-cache ffmpeg
 
 # Create app directory
 WORKDIR /usr/src/app
@@ -29,6 +31,11 @@ USER node
 
 FROM node:18-alpine AS build
 
+# Install FFmpeg and build dependencies
+RUN apk add --no-cache ffmpeg python3 make g++
+
+# Verify FFmpeg installation
+RUN ffmpeg -version
 
 WORKDIR /usr/src/app
 
@@ -51,12 +58,21 @@ ENV NODE_ENV production
 # Install production dependencies and prune pnpm store
 RUN pnpm install
 
+# Rebuild bcrypt
+RUN npm rebuild bcrypt --build-from-source
+
 
 ###################
 # PRODUCTION
 ###################
 
 FROM node:18-alpine AS production
+
+# Install FFmpeg
+RUN apk add --no-cache ffmpeg
+
+# Verify FFmpeg installation
+RUN ffmpeg -version
 
 WORKDIR /usr/src/app
 

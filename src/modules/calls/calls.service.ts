@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,18 +10,28 @@ import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { User, Call, Feedback } from '@/entities';
 import { CallsGateway } from './calls.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
+import * as crypto from 'crypto';
+import { StorageService } from '../storage/storage.service';
+import { RecordingService } from '../recording/recording.service';
+import AudioRecorder from 'node-audiorecorder';
+import { CallsEvents } from './calls.events';
 
 @Injectable()
 export class CallsService {
+  private readonly activeRecordings = new Map<string, AudioRecorder>();
+
   constructor(
     @InjectRepository(Call)
-    private callRepository: Repository<Call>,
+    private readonly callRepository: Repository<Call>,
     @InjectRepository(Feedback)
-    private feedbackRepository: Repository<Feedback>,
+    private readonly feedbackRepository: Repository<Feedback>,
     @InjectRepository(User)
-    private userRepository: Repository<User>,
-    private callsGateway: CallsGateway,
+    private readonly userRepository: Repository<User>,
+    private readonly callsEvents: CallsEvents,
     private readonly notificationsService: NotificationsService,
+    private readonly storageService: StorageService,
+    private readonly recordingService: RecordingService,
+    private readonly callsGateway: CallsGateway,
   ) {}
 
   async startCall(customerId: string) {
@@ -219,5 +230,102 @@ export class CallsService {
         timestamp: transcript.timestamp,
       })),
     };
+  }
+
+  async addNote(callId: string, content: string) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+      select: ['id', 'notes'],
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    let currentNotes = [];
+    try {
+      currentNotes = call.notes ? JSON.parse(call.notes) : [];
+    } catch (error) {
+      // If existing notes are not valid JSON, start with empty array
+      currentNotes = [];
+    }
+
+    const newNote = {
+      id: crypto.randomUUID(),
+      content,
+      timestamp: new Date(),
+      isAIGenerated: false,
+    };
+
+    currentNotes.push(newNote);
+
+    await this.callRepository.update(callId, {
+      notes: JSON.stringify(currentNotes),
+    });
+
+    return newNote;
+  }
+
+  async getNotes(callId: string) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+      select: ['id', 'notes'],
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    return call.notes ? JSON.parse(call.notes) : [];
+  }
+
+  async startRecording(callId: string) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    if (call.status !== 'active') {
+      throw new BadRequestException('Can only record active calls');
+    }
+
+    await this.callRepository.update(callId, {
+      recordingStatus: 'recording',
+    });
+
+    return { status: 'recording_started' };
+  }
+
+  async stopRecording(callId: string) {
+    const audioData = this.callsEvents.getAudioStream(callId);
+    if (!audioData.length) {
+      throw new NotFoundException('No recording data found');
+    }
+
+    const blob = new Blob(audioData, { type: 'audio/webm' });
+    await this.storageService.saveRecording(callId, blob);
+
+    this.callsEvents.clearAudioStream(callId);
+
+    await this.callRepository.update(callId, {
+      recordingStatus: 'completed',
+    });
+
+    return { status: 'recording_stopped' };
+  }
+
+  async getRecording(callId: string) {
+    return this.storageService.getRecording(callId);
+  }
+
+  async getRecordingUrl(callId: string) {
+    return this.storageService.getSignedUrl(callId);
+  }
+
+  async getLongLivedRecordingUrl(callId: string) {
+    return this.storageService.getLongLivedUrl(callId);
   }
 }

@@ -8,45 +8,69 @@ import {
 import { Server } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { WS_NAMESPACES, WS_EVENTS } from '../../constants/websocket.constants';
-import { ExtendedSocket } from '../auth/gateway.ts/auth.middleware';
+import {
+  ExtendedSocket,
+  WSAuthMiddleware,
+} from '../auth/gateway.ts/auth.middleware';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { WSAuthMiddleware } from '../auth/gateway.ts/auth.middleware';
+import { CallsEvents } from './calls.events';
 
 @WebSocketGateway({
   namespace: WS_NAMESPACES.CALLS,
   cors: {
-    origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
+    credentials: true,
   },
 })
 export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
-  constructor(
-    private jwtService: JwtService,
-    private configService: ConfigService,
-  ) {}
-
   @WebSocketServer()
   server: Server;
 
+  private readonly connectedClients: Map<string, ExtendedSocket> = new Map();
+  private readonly logger = new Logger(CallsGateway.name);
+
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly callsEvents: CallsEvents,
+  ) {}
+
   afterInit(server: Server) {
-    server.use(WSAuthMiddleware(this.jwtService, this.configService));
+    const wsAuthMiddleware = WSAuthMiddleware(
+      this.jwtService,
+      this.configService,
+    );
     const dateString = new Date().toLocaleString();
     const message = `[WebSocket] ${process.pid} - ${dateString} LOG [WebSocketServer] Websocket server successfully started`;
     this.logger.log(message);
+    server.use(wsAuthMiddleware);
   }
-
-  private connectedClients: Map<string, ExtendedSocket> = new Map();
-  private logger = new Logger(CallsGateway.name);
 
   handleConnection(client: ExtendedSocket) {
     const userId = client.subId;
-    this.connectedClients.set(userId, client);
-    this.logger.log(`Client connected: ${userId}`);
+    if (userId) {
+      this.connectedClients.set(userId, client);
+      this.logger.log(`Client connected: ${userId}`);
+      client.join(`user:${userId}`);
+    }
   }
 
   handleDisconnect(client: ExtendedSocket) {
     const userId = client.subId;
-    this.connectedClients.delete(userId);
+    if (userId) {
+      this.connectedClients.delete(userId);
+      this.logger.log(`Client disconnected: ${userId}`);
+    }
+  }
+
+  @SubscribeMessage('voiceData')
+  handleVoiceData(
+    client: ExtendedSocket,
+    payload: { callId: string; data: any },
+  ) {
+    this.logger.log(`Received voice data for call ${payload.callId}`);
+    this.callsEvents.emitVoiceData(payload.callId, payload.data);
   }
 
   @SubscribeMessage('call-offer')
@@ -88,21 +112,21 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  async notifyCallAssigned(userId: string, callData: any) {
+  notifyCallAssigned(userId: string, callData: any) {
     const client = this.connectedClients.get(userId);
     if (client) {
       client.emit(WS_EVENTS.CALLS.CALL_ASSIGNED, callData);
     }
   }
 
-  async notifyCallEnded(userId: string) {
+  notifyCallEnded(userId: string) {
     const client = this.connectedClients.get(userId);
     if (client) {
       client.emit(WS_EVENTS.CALLS.CALL_ENDED);
     }
   }
 
-  async notifyCallEndedByAdmin(
+  notifyCallEndedByAdmin(
     callId: string,
     data: {
       customerId: string;
@@ -128,12 +152,10 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       representativeClient.emit('call_ended', callEndedData);
     }
 
-    // For admin notifications, we'll keep the room-based approach since admins
-    // are handled differently
     this.server.to('role:admin').emit('call_ended', callEndedData);
   }
 
-  async broadcastCallUpdate() {
+  broadcastCallUpdate() {
     this.server.emit(WS_EVENTS.CALLS.CALL_UPDATE);
   }
 }
