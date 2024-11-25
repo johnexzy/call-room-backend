@@ -41,18 +41,25 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.jwtService,
       this.configService,
     );
-    const dateString = new Date().toLocaleString();
-    const message = `[WebSocket] ${process.pid} - ${dateString} LOG [WebSocketServer] Websocket server successfully started`;
-    this.logger.log(message);
     server.use(wsAuthMiddleware);
+
+    server.on('connection_error', (err) => {
+      console.error('Connection error:', err);
+    });
+
+    this.logger.log('WebSocket Server Initialized');
   }
 
   handleConnection(client: ExtendedSocket) {
-    const userId = client.subId;
-    if (userId) {
-      this.connectedClients.set(userId, client);
-      this.logger.log(`Client connected: ${userId}`);
-      client.join(`user:${userId}`);
+    try {
+      const userId = client.subId;
+      if (userId) {
+        this.connectedClients.set(userId, client);
+        this.logger.log(`Client connected: ${userId}`);
+        client.join(`user:${userId}`);
+      }
+    } catch (error) {
+      this.logger.error('Error handling connection:', error);
     }
   }
 
@@ -64,51 +71,18 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  @SubscribeMessage('voiceData')
-  handleVoiceData(
-    client: ExtendedSocket,
-    payload: { callId: string; data: any },
-  ) {
-    this.logger.log(`Received voice data for call ${payload.callId}`);
-    this.callsEvents.emitVoiceData(payload.callId, payload.data);
-  }
-
-  @SubscribeMessage('call-offer')
-  async handleCallOffer(client: ExtendedSocket, payload: any) {
-    const { targetUserId, offer, callId } = payload;
-    const targetClient = this.connectedClients.get(targetUserId);
-    if (targetClient) {
-      targetClient.emit('call-offer', {
-        offer,
-        callId,
-        fromUserId: client.subId,
-      });
-    }
-  }
-
-  @SubscribeMessage('call-answer')
-  async handleCallAnswer(client: ExtendedSocket, payload: any) {
-    const { targetUserId, answer, callId } = payload;
-    const targetClient = this.connectedClients.get(targetUserId);
-    if (targetClient) {
-      targetClient.emit('call-answer', {
-        answer,
-        callId,
-        fromUserId: client.subId,
-      });
-    }
-  }
-
-  @SubscribeMessage('ice-candidate')
-  async handleIceCandidate(client: ExtendedSocket, payload: any) {
-    const { targetUserId, candidate, callId } = payload;
-    const targetClient = this.connectedClients.get(targetUserId);
-    if (targetClient) {
-      targetClient.emit('ice-candidate', {
-        candidate,
-        callId,
-        fromUserId: client.subId,
-      });
+  @SubscribeMessage('agora-token')
+  async handleAgoraToken(client: ExtendedSocket, payload: { callId: string }) {
+    try {
+      const uid = parseInt(client.subId, 10);
+      const token = await this.callsEvents.generateAgoraToken(
+        payload.callId,
+        uid,
+      );
+      client.emit('agora-token', token);
+    } catch (error) {
+      this.logger.error('Error generating Agora token:', error);
+      client.emit('error', { message: 'Failed to generate token' });
     }
   }
 

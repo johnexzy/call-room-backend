@@ -12,8 +12,13 @@ export default new DataSource({
   database: process.env.DB_NAME,
   entities: ['src/**/*.entity{.ts,.js}'],
   migrations: ['src/database/migrations/*{.ts,.js}'],
-  ssl:
-    process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: false }
-      : false,
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  poolSize: 20,
+  connectTimeoutMS: 30000,
+  extra: {
+    max: 20,
+    idleTimeoutMillis: 60000,
+    connectionTimeoutMillis: 30000,
+    keepAlive: true,
+  },
 });

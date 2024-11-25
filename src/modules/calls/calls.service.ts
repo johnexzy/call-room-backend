@@ -1,3 +1,4 @@
+import { Multer } from 'multer';
 import {
   Injectable,
   NotFoundException,
@@ -15,6 +16,8 @@ import { StorageService } from '../storage/storage.service';
 import { RecordingService } from '../recording/recording.service';
 import AudioRecorder from 'node-audiorecorder';
 import { CallsEvents } from './calls.events';
+import { RtcTokenBuilder, RtcRole } from 'agora-access-token';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class CallsService {
@@ -32,6 +35,7 @@ export class CallsService {
     private readonly storageService: StorageService,
     private readonly recordingService: RecordingService,
     private readonly callsGateway: CallsGateway,
+    private readonly configService: ConfigService,
   ) {}
 
   async startCall(customerId: string) {
@@ -292,6 +296,9 @@ export class CallsService {
       throw new BadRequestException('Can only record active calls');
     }
 
+    // Initialize recording stream
+    this.callsEvents.startRecording(callId);
+
     await this.callRepository.update(callId, {
       recordingStatus: 'recording',
     });
@@ -299,22 +306,62 @@ export class CallsService {
     return { status: 'recording_started' };
   }
 
-  async stopRecording(callId: string) {
-    const audioData = this.callsEvents.getAudioStream(callId);
-    if (!audioData.length) {
-      throw new NotFoundException('No recording data found');
-    }
-
-    const blob = new Blob(audioData, { type: 'audio/webm' });
-    await this.storageService.saveRecording(callId, blob);
-
-    this.callsEvents.clearAudioStream(callId);
-
-    await this.callRepository.update(callId, {
-      recordingStatus: 'completed',
+  async stopRecording(callId: string, recordingData?: Multer.File) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
     });
 
-    return { status: 'recording_stopped' };
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    try {
+      let processedBuffer: Buffer;
+
+      // Check if recording data was provided (i.e., from the controller)
+      if (recordingData) {
+        // Directly process buffer from the uploaded file (Multer.File)
+        processedBuffer = await this.recordingService.processAudioData(
+          recordingData.buffer,
+        );
+      } else {
+        // Handle case where no file was uploaded, using stored data
+        const audioData = this.callsEvents.getRecordingData(callId);
+        if (!audioData || audioData.length === 0) {
+          throw new BadRequestException('No recording data found');
+        }
+
+        // Create a Blob from the stored audio data, then convert to ArrayBuffer
+        const audioBlob = new Blob(audioData, { type: 'audio/webm' });
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        processedBuffer = await this.recordingService.processAudioData(
+          Buffer.from(arrayBuffer),
+        );
+      }
+
+      // Save the processed buffer using the storage service
+      await this.storageService.saveRecording(
+        callId,
+        new Blob([processedBuffer], { type: 'audio/webm' }),
+      );
+
+      // Clear the recording data from memory
+      this.callsEvents.clearRecording(callId);
+
+      // Update the call record to indicate recording has completed
+      await this.callRepository.update(callId, {
+        recordingStatus: 'completed',
+      });
+
+      return { status: 'recording_stopped' };
+    } catch (error) {
+      console.error('Error processing recording:', error);
+      // Update the call record to indicate recording failure
+      await this.callRepository.update(callId, {
+        recordingStatus: 'failed',
+      });
+      throw new Error('Failed to process recording');
+    }
   }
 
   async getRecording(callId: string) {
@@ -327,5 +374,28 @@ export class CallsService {
 
   async getLongLivedRecordingUrl(callId: string) {
     return this.storageService.getLongLivedUrl(callId);
+  }
+
+  async generateAgoraToken(callId: string) {
+    const appId = this.configService.get('AGORA_APP_ID');
+    const appCertificate = this.configService.get('AGORA_APP_CERTIFICATE');
+
+    const expirationTimeInSeconds = 3600;
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+
+    const token = RtcTokenBuilder.buildTokenWithUid(
+      appId,
+      appCertificate,
+      callId, // use callId as channel name
+      0,
+      RtcRole.PUBLISHER,
+      privilegeExpiredTs,
+    );
+
+    return {
+      token,
+      channel: callId,
+    };
   }
 }

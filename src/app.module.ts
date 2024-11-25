@@ -37,8 +37,11 @@ import { RecordingModule } from './modules/recording/recording.module';
         synchronize: false,
         logging: configService.get('NODE_ENV') === 'development',
         ssl:
-          configService.get('NODE_ENV') === 'production'
-            ? { rejectUnauthorized: false }
+          configService.get('DB_SSL') === 'true'
+            ? {
+                rejectUnauthorized: false,
+                ca: configService.get('DB_CA_CERT'),
+              }
             : false,
       }),
       inject: [ConfigService],

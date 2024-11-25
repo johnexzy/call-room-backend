@@ -8,7 +8,12 @@ import {
   Request,
   Put,
   Res,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+  Logger,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CallsService } from './calls.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -21,6 +26,13 @@ import {
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { Response } from 'express';
+import { Multer } from 'multer';
+import { memoryStorage } from 'multer';
+import {
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
+} from '@nestjs/common';
 
 @ApiTags('calls')
 @Controller({
@@ -122,8 +134,48 @@ export class CallsController {
 
   @Post(':id/recording/stop')
   @ApiOperation({ summary: 'Stop call recording' })
-  async stopRecording(@Param('id') id: string) {
-    return this.callsService.stopRecording(id);
+  @UseInterceptors(
+    FileInterceptor('recording', {
+      limits: {
+        fileSize: 50 * 1024 * 1024, // 50MB
+      },
+      fileFilter: (req, file, callback) => {
+        Logger.log('Received file:', file); // Debug log
+        if (!file.mimetype.includes('audio/')) {
+          return callback(
+            new BadRequestException('Only audio files are allowed'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+      storage: memoryStorage(), // Use memory storage
+    }),
+  )
+  async stopRecording(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: 'audio/*' }),
+        ],
+        fileIsRequired: true,
+      }),
+    )
+    recording: Multer.File,
+  ) {
+    // Checking the instance and structure of the recording file
+    Logger.log('Type of recording:', typeof recording);
+
+    Logger.log('Recording properties:', {
+      originalname: recording?.originalname,
+      mimetype: recording?.mimetype,
+      size: recording?.size,
+      buffer: recording?.buffer ? 'Buffer present' : 'No buffer',
+    });
+
+    return this.callsService.stopRecording(id, recording);
   }
 
   @Get(':id/recording/download')
@@ -151,5 +203,10 @@ export class CallsController {
   })
   async getLongLivedRecordingUrl(@Param('id') id: string) {
     return this.callsService.getLongLivedRecordingUrl(id);
+  }
+
+  @Get(':id/token')
+  async getAgoraToken(@Param('id') id: string) {
+    return this.callsService.generateAgoraToken(id);
   }
 }
