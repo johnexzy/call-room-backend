@@ -7,6 +7,7 @@ import { User } from '@/entities';
 export class ExtendedSocket extends Socket {
   user: User;
   subId: string;
+  isAlive: boolean;
 }
 
 // Auth Middleware for socket connections
@@ -20,32 +21,33 @@ export const WSAuthMiddleware = (
 ): SocketMiddleware => {
   return async (client: ExtendedSocket, next) => {
     try {
-      const headers =
-        typeof client.handshake.auth.headers !== 'undefined'
-          ? client.handshake.auth.headers
-          : client.handshake.headers;
-      const token = headers.authorization
-        ? headers.authorization.split(' ')[1]
-        : null;
+      const auth = client.handshake.auth;
+      let token = null;
+
+      // Check both places for the token
+      if (auth?.headers?.Authorization) {
+        token = auth.headers.Authorization.split(' ')[1];
+      } else if (auth?.token) {
+        token = auth.token;
+      }
+
+      if (!token) {
+        return next(new Error('Authentication token missing'));
+      }
 
       const decoded = jwtService.verify(token, {
         secret: configService.get('JWT_SECRET'),
       });
 
-      if (typeof decoded?.sub === 'undefined') {
-        next({
-          name: 'Unauthorized',
-          message: 'Unauthorized',
-        });
+      if (!decoded?.sub) {
+        return next(new Error('Invalid token'));
       }
 
-      client.subId = decoded?.sub;
+      client.subId = decoded.sub;
       next();
     } catch (error) {
-      next({
-        name: 'Unauthorized',
-        message: 'Unauthorized',
-      });
+      console.error('WebSocket auth error:', error);
+      next(new Error('Authentication failed'));
     }
   };
 };

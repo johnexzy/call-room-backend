@@ -58,7 +58,18 @@ export class UserSeeder {
       });
 
       await this.userRepository.save(representative);
-      console.log('Test representative created successfully');
+
+      // Create test user
+      const user = this.userRepository.create({
+        email: 'user@callroom.com',
+        password: hashedPassword,
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'customer',
+      });
+
+      await this.userRepository.save(user);
+      console.log('Test user created successfully');
     } catch (error) {
       console.error('Error seeding database:', error);
       throw error;
