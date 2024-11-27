@@ -33,6 +33,8 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
 } from '@nestjs/common';
+import { UserExistsGuard } from '../users/guards/user-exists.guard';
+import { DataParam } from '@/decorator/data-param.decorator';
 
 @ApiTags('calls')
 @Controller({
@@ -134,6 +136,7 @@ export class CallsController {
 
   @Post(':id/recording/stop')
   @ApiOperation({ summary: 'Stop call recording' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   @UseInterceptors(
     FileInterceptor('recording', {
       limits: {
@@ -165,9 +168,6 @@ export class CallsController {
     )
     recording: Multer.File,
   ) {
-    // Checking the instance and structure of the recording file
-    Logger.log('Type of recording:', typeof recording);
-
     Logger.log('Recording properties:', {
       originalname: recording?.originalname,
       mimetype: recording?.mimetype,
@@ -175,7 +175,8 @@ export class CallsController {
       buffer: recording?.buffer ? 'Buffer present' : 'No buffer',
     });
 
-    return this.callsService.stopRecording(id, recording);
+    this.callsService.stopRecording(id, recording);
+    return { status: 'recording_stopped' };
   }
 
   @Get(':id/recording/download')
@@ -206,7 +207,11 @@ export class CallsController {
   }
 
   @Get(':id/token')
-  async getAgoraToken(@Param('id') id: string) {
-    return this.callsService.generateAgoraToken(id);
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
+  async getAgoraToken(
+    @Param('id') id: string,
+    @DataParam('id') userId: string,
+  ) {
+    return this.callsService.generateAgoraToken(id, userId);
   }
 }

@@ -7,34 +7,62 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import {
+  ExtendedSocket,
+  WSAuthMiddleware,
+} from '../auth/gateway.ts/auth.middleware';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { WS_NAMESPACES } from '@/constants/websocket.constants';
 
 @WebSocketGateway({
+  namespace: WS_NAMESPACES.NOTIFICATIONS,
   cors: {
     origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
-    credentials: true,
   },
 })
 export class NotificationsGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
+  constructor(
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) {}
+
   @WebSocketServer()
   server: Server;
 
-  private readonly logger = new Logger(NotificationsGateway.name);
-  private connectedClients = new Map<string, string>(); // socketId -> userId
-
-  async handleConnection(client: Socket) {
-    this.logger.log(`Client connected: ${client.id}`);
+  afterInit(server: Server) {
+    server.use(WSAuthMiddleware(this.jwtService, this.configService));
+    const dateString = new Date().toLocaleString();
+    const message = `[WebSocket] ${process.pid} - ${dateString} LOG [WebSocketServer] Websocket server successfully started`;
+    this.logger.log(message);
   }
 
-  async handleDisconnect(client: Socket) {
-    this.logger.log(`Client disconnected: ${client.id}`);
-    this.connectedClients.delete(client.id);
+  private readonly logger = new Logger(NotificationsGateway.name);
+  private connectedClients = new Map<string, ExtendedSocket>(); // socketId -> userId
+
+  handleConnection(client: ExtendedSocket) {
+    try {
+      const userId = client.subId;
+      if (userId) {
+        this.connectedClients.set(userId, client);
+        this.logger.log(`Client connected: ${userId}`);
+        client.join(`user:${userId}`);
+      }
+    } catch (error) {
+      this.logger.error('Error handling connection:', error);
+    }
+  }
+
+  handleDisconnect(client: ExtendedSocket) {
+    const userId = client.subId;
+    this.connectedClients.delete(userId);
   }
 
   @SubscribeMessage('register')
-  async handleRegister(client: Socket, userId: string) {
-    this.connectedClients.set(client.id, userId);
+  async handleRegister(client: ExtendedSocket, userId: string) {
+    this.connectedClients.set(client.id, client);
     client.join(`user:${userId}`);
     this.logger.log(`User ${userId} registered to socket ${client.id}`);
   }
