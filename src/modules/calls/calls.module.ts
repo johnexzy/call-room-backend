@@ -11,6 +11,7 @@ import { StorageModule } from '../storage/storage.module';
 import { RecordingModule } from '../recording/recording.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { WebRTCModule } from '../webrtc/webrtc.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { WebRTCModule } from '../webrtc/webrtc.module';
     RecordingModule,
     NotificationsModule,
     WebRTCModule,
+    UsersModule,
   ],
   providers: [CallsService, CallsGateway, CallsEvents],
   controllers: [CallsController],

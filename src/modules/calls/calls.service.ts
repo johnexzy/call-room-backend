@@ -376,7 +376,7 @@ export class CallsService {
     return this.storageService.getLongLivedUrl(callId);
   }
 
-  async generateAgoraToken(callId: string) {
+  async generateAgoraToken(callId: string, userId: string) {
     const appId = this.configService.get('AGORA_APP_ID');
     const appCertificate = this.configService.get('AGORA_APP_CERTIFICATE');
 
@@ -384,11 +384,14 @@ export class CallsService {
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
+    // Convert UUID to a number within 32-bit unsigned int range (1 to 2^32-1)
+    const uidNumber = (parseInt(userId.replace(/-/g, ''), 16) % 0xffffffff) + 1;
+
     const token = RtcTokenBuilder.buildTokenWithUid(
       appId,
       appCertificate,
-      callId, // use callId as channel name
-      0,
+      callId,
+      uidNumber,
       RtcRole.PUBLISHER,
       privilegeExpiredTs,
     );
@@ -396,6 +399,7 @@ export class CallsService {
     return {
       token,
       channel: callId,
+      uid: uidNumber,
     };
   }
 }
