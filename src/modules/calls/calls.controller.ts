@@ -68,6 +68,7 @@ export class CallsController {
 
   @Put(':id/end')
   @ApiOperation({ summary: 'End a call' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async endCall(
     @Param('id') id: string,
     @Request() req,
@@ -78,18 +79,21 @@ export class CallsController {
 
   @Post(':id/missed')
   @ApiOperation({ summary: 'Mark a call as missed' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async markCallAsMissed(@Param('id') id: string) {
     return this.callsService.markCallAsMissed(id);
   }
 
   @Get('history')
   @ApiOperation({ summary: 'Get call history' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async getCallHistory(@Request() req) {
     return this.callsService.getCallHistory(req.user.id, req.user.role);
   }
 
   @Post(':id/feedback')
   @ApiOperation({ summary: 'Submit feedback for a call' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async submitFeedback(
     @Param('id') id: string,
     @Body() createFeedbackDto: CreateFeedbackDto,
@@ -99,6 +103,7 @@ export class CallsController {
 
   @Get(':id/quality')
   @ApiOperation({ summary: 'Get call quality metrics' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async getCallQualityMetrics(@Param('id') id: string) {
     return this.callsService.getQualityMetrics(id);
   }
@@ -112,24 +117,28 @@ export class CallsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get call details by ID' })
   @ApiParam({ name: 'id', description: 'Call ID' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async getCallById(@Param('id') id: string) {
     return this.callsService.getCallById(id);
   }
 
   @Post(':id/notes')
   @ApiOperation({ summary: 'Add note to call' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async addNote(@Param('id') id: string, @Body() body: { content: string }) {
     return this.callsService.addNote(id, body.content);
   }
 
   @Get(':id/notes')
   @ApiOperation({ summary: 'Get call notes' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async getNotes(@Param('id') id: string) {
     return this.callsService.getNotes(id);
   }
 
   @Post(':id/recording/start')
   @ApiOperation({ summary: 'Start call recording' })
+  @UseGuards(JwtAuthGuard, UserExistsGuard)
   async startRecording(@Param('id') id: string) {
     return this.callsService.startRecording(id);
   }

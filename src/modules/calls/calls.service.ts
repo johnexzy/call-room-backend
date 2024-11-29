@@ -2,7 +2,6 @@ import { Multer } from 'multer';
 import {
   Injectable,
   NotFoundException,
-  UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -73,12 +72,6 @@ export class CallsService {
 
     if (!call) {
       throw new NotFoundException('Call not found');
-    }
-
-    if (call.representative.id !== userId) {
-      throw new UnauthorizedException(
-        'Only the representative can end the call',
-      );
     }
 
     call.status = 'completed';

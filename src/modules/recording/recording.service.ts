@@ -39,13 +39,7 @@ export class RecordingService {
   }
 
   async processAudioData(audioData: Buffer): Promise<Buffer> {
-    try {
-      console.log('Processing audio data of size:', audioData.length);
-      const inputStream = Readable.from(audioData);
-      return await this.createRecorder(inputStream);
-    } catch (error) {
-      console.error('Error in processAudioData:', error);
-      throw error;
-    }
+    const inputStream = Readable.from(audioData);
+    return this.createRecorder(inputStream);
   }
 }
