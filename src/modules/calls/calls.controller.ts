@@ -8,12 +8,7 @@ import {
   Request,
   Put,
   Res,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
-  Logger,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { CallsService } from './calls.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -26,13 +21,7 @@ import {
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { Response } from 'express';
-import { Multer } from 'multer';
-import { memoryStorage } from 'multer';
-import {
-  ParseFilePipe,
-  MaxFileSizeValidator,
-  FileTypeValidator,
-} from '@nestjs/common';
+
 import { UserExistsGuard } from '../users/guards/user-exists.guard';
 import { DataParam } from '@/decorator/data-param.decorator';
 
@@ -140,52 +129,66 @@ export class CallsController {
   @ApiOperation({ summary: 'Start call recording' })
   @UseGuards(JwtAuthGuard, UserExistsGuard)
   async startRecording(@Param('id') id: string) {
-    return this.callsService.startRecording(id);
+    return this.callsService.startAgoraCloudRecording(id);
   }
+
+  // @Post(':id/recording/stop')
+  // @ApiOperation({ summary: 'Stop call recording' })
+  // @UseGuards(JwtAuthGuard, UserExistsGuard)
+  // @UseInterceptors(
+  //   FileInterceptor('recording', {
+  //     limits: {
+  //       fileSize: 50 * 1024 * 1024, // 50MB
+  //     },
+  //     fileFilter: (req, file, callback) => {
+  //       Logger.log('Received file:', file); // Debug log
+  //       if (!file.mimetype.includes('audio/')) {
+  //         return callback(
+  //           new BadRequestException('Only audio files are allowed'),
+  //           false,
+  //         );
+  //       }
+  //       callback(null, true);
+  //     },
+  //     storage: memoryStorage(), // Use memory storage
+  //   }),
+  // )
+  // async stopRecording(
+  //   @Param('id') id: string,
+  //   @UploadedFile(
+  //     new ParseFilePipe({
+  //       validators: [
+  //         new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }),
+  //         new FileTypeValidator({ fileType: 'audio/*' }),
+  //       ],
+  //       fileIsRequired: true,
+  //     }),
+  //   )
+  //   recording: Multer.File,
+  // ) {
+  //   Logger.log('Recording properties:', {
+  //     originalname: recording?.originalname,
+  //     mimetype: recording?.mimetype,
+  //     size: recording?.size,
+  //     buffer: recording?.buffer ? 'Buffer present' : 'No buffer',
+  //   });
+
+  //   this.callsService.stopRecording(id, recording);
+  //   return { status: 'recording_stopped' };
+  // }
 
   @Post(':id/recording/stop')
   @ApiOperation({ summary: 'Stop call recording' })
   @UseGuards(JwtAuthGuard, UserExistsGuard)
-  @UseInterceptors(
-    FileInterceptor('recording', {
-      limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB
-      },
-      fileFilter: (req, file, callback) => {
-        Logger.log('Received file:', file); // Debug log
-        if (!file.mimetype.includes('audio/')) {
-          return callback(
-            new BadRequestException('Only audio files are allowed'),
-            false,
-          );
-        }
-        callback(null, true);
-      },
-      storage: memoryStorage(), // Use memory storage
-    }),
-  )
   async stopRecording(
     @Param('id') id: string,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: 'audio/*' }),
-        ],
-        fileIsRequired: true,
-      }),
-    )
-    recording: Multer.File,
+    @Body() body: { resourceId: string; sid: string },
   ) {
-    Logger.log('Recording properties:', {
-      originalname: recording?.originalname,
-      mimetype: recording?.mimetype,
-      size: recording?.size,
-      buffer: recording?.buffer ? 'Buffer present' : 'No buffer',
-    });
-
-    this.callsService.stopRecording(id, recording);
-    return { status: 'recording_stopped' };
+    return this.callsService.stopAgoraCloudRecording(
+      id,
+      body.resourceId,
+      body.sid,
+    );
   }
 
   @Get(':id/recording/download')
