@@ -2,8 +2,8 @@ import { Multer } from 'multer';
 import {
   Injectable,
   NotFoundException,
-  UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -14,14 +14,13 @@ import { NotificationsService } from '../notifications/notifications.service';
 import * as crypto from 'crypto';
 import { StorageService } from '../storage/storage.service';
 import { RecordingService } from '../recording/recording.service';
-import AudioRecorder from 'node-audiorecorder';
 import { CallsEvents } from './calls.events';
 import { RtcTokenBuilder, RtcRole } from 'agora-access-token';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class CallsService {
-  private readonly activeRecordings = new Map<string, AudioRecorder>();
+  private readonly logger = new Logger(CallsService.name);
 
   constructor(
     @InjectRepository(Call)
@@ -73,12 +72,6 @@ export class CallsService {
 
     if (!call) {
       throw new NotFoundException('Call not found');
-    }
-
-    if (call.representative.id !== userId) {
-      throw new UnauthorizedException(
-        'Only the representative can end the call',
-      );
     }
 
     call.status = 'completed';
@@ -376,7 +369,7 @@ export class CallsService {
     return this.storageService.getLongLivedUrl(callId);
   }
 
-  async generateAgoraToken(callId: string, userId: string) {
+  async generateAgoraToken(callId: string, userId?: string) {
     const appId = this.configService.get('AGORA_APP_ID');
     const appCertificate = this.configService.get('AGORA_APP_CERTIFICATE');
 
@@ -385,7 +378,10 @@ export class CallsService {
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
     // Convert UUID to a number within 32-bit unsigned int range (1 to 2^32-1)
-    const uidNumber = (parseInt(userId.replace(/-/g, ''), 16) % 0xffffffff) + 1;
+
+    const uidNumber = userId
+      ? (parseInt(userId.replace(/-/g, ''), 16) % 0xffffffff) + 1
+      : 1;
 
     const token = RtcTokenBuilder.buildTokenWithUid(
       appId,
@@ -401,5 +397,99 @@ export class CallsService {
       channel: callId,
       uid: uidNumber,
     };
+  }
+
+  async generateBasicAuthToken() {
+    const customerId = this.configService.get('AGORA_CUSTOMER_ID');
+    const customerSecret = this.configService.get('AGORA_CUSTOMER_SECRET');
+
+    const token = Buffer.from(`${customerId}:${customerSecret}`).toString(
+      'base64',
+    );
+
+    return token;
+  }
+
+  async startAgoraCloudRecording(callId: string) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    const uid = (parseInt(callId.replace(/-/g, ''), 16) % 0xffffffff) + 1;
+    const token = await this.generateBasicAuthToken();
+
+    const appToken = await this.generateAgoraToken(callId, callId);
+
+    const resourceId = await this.recordingService.acquireResource(
+      callId,
+      uid,
+      token,
+      appToken.token,
+    );
+    this.logger.log('resourceId', resourceId);
+
+    const sid = await this.recordingService.startRecording(
+      resourceId,
+      callId,
+      uid,
+      token,
+      appToken.token,
+    );
+
+    await this.callRepository.update(callId, {
+      recordingStatus: 'recording',
+    });
+
+    return { status: 'recording_started', resourceId, sid };
+  }
+
+  async stopAgoraCloudRecording(
+    callId: string,
+    resourceId: string,
+    sid: string,
+  ) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    const uid = (parseInt(callId.replace(/-/g, ''), 16) % 0xffffffff) + 1;
+
+    const token = await this.generateBasicAuthToken();
+
+    const appToken = await this.generateAgoraToken(callId, callId);
+
+    const response = await this.recordingService.stopRecording(
+      resourceId,
+      sid,
+      callId,
+      uid,
+      token,
+      appToken.token,
+    );
+
+    await this.callRepository.update(callId, {
+      recordingStatus: 'completed',
+    });
+
+    const result = response.serverResponse;
+    // Transfer file from AWS S3 to GCP Storage
+    if (result.uploadingStatus === 'uploaded') {
+      setTimeout(async () => {
+        await this.storageService.transferFileFromAWSToGCP(
+          this.configService.get('AWS_BUCKET_NAME'),
+          result.fileList[0]?.fileName,
+          result.fileList[0]?.fileName,
+        );
+      }, 1000);
+    }
+    return { status: 'recording_stopped', ...response };
   }
 }

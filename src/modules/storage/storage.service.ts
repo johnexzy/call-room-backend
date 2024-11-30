@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Storage } from '@google-cloud/storage';
 import { ConfigService } from '@nestjs/config';
+import AWS from 'aws-sdk';
 
 @Injectable()
 export class StorageService {
   private storage: Storage;
   private bucket: string;
+  private s3: AWS.S3;
 
   constructor(private configService: ConfigService) {
     this.storage = new Storage({
@@ -18,6 +20,13 @@ export class StorageService {
       },
     });
     this.bucket = this.configService.get('GOOGLE_CLOUD_BUCKET_NAME');
+
+    // Initialize AWS S3 client using ConfigService
+    this.s3 = new AWS.S3({
+      accessKeyId: this.configService.get('AWS_ACCESS_KEY_ID'),
+      secretAccessKey: this.configService.get('AWS_SECRET_ACCESS_KEY'),
+      region: this.configService.get('AWS_REGION'),
+    });
   }
 
   async saveRecording(callId: string, blob: Blob): Promise<void> {
@@ -83,5 +92,30 @@ export class StorageService {
     });
 
     return url;
+  }
+
+  async transferFileFromAWSToGCP(
+    s3Bucket: string,
+    s3Key: string,
+    gcpDestination: string,
+  ): Promise<void> {
+    try {
+      // Download file from AWS S3
+      const s3Object = await this.s3
+        .getObject({ Bucket: s3Bucket, Key: s3Key })
+        .promise();
+      const fileBuffer = s3Object.Body as Buffer;
+
+      // Upload file to GCP Storage
+      const file = this.storage.bucket(this.bucket).file(gcpDestination);
+      await file.save(fileBuffer);
+
+      console.log(
+        `File successfully transferred from AWS S3 to GCP Storage: ${gcpDestination}`,
+      );
+    } catch (error) {
+      console.error('Error transferring file:', error);
+      throw new Error('File transfer failed');
+    }
   }
 }
