@@ -106,7 +106,7 @@ export class StorageService {
     return this.transcriptionService.transcribeAudioFile(gcsUri, sampleRate);
   }
 
-  async transcribeVideoContent(file: Buffer | string, gcpDestination: string) {
+  async transcribeVideoContent(_file: Buffer | string) {
     try {
       const tempDir = path.join(process.cwd(), 'temp');
       if (!fs.existsSync(tempDir)) {
@@ -115,18 +115,18 @@ export class StorageService {
 
       const timestamp = Date.now();
       const audioFilePath = path.join(tempDir, `audio_${timestamp}.wav`);
-      const gcsFileName = `${gcpDestination}/audio_${timestamp}.wav`;
+      const gcsFileName = `transcriptions/${timestamp}.wav`;
 
       // Convert video to audio
       await new Promise<void>((resolve, reject) => {
         const command = ffmpeg();
 
-        if (typeof file === 'string') {
-          command.input(file);
+        if (typeof _file === 'string') {
+          command.input(_file);
         } else {
           // Create a readable stream from the buffer
           const readableStream = new Readable();
-          readableStream.push(file);
+          readableStream.push(_file);
           readableStream.push(null);
           command.input(readableStream);
         }
@@ -148,6 +148,14 @@ export class StorageService {
       const gcsUri = await this.uploadAudioToGCS(audioFilePath, gcsFileName);
       const sampleRate = await this.getAudioSampleRate(audioFilePath);
 
+      // Get a signed URL for the WAV file
+      const file = this.storage.bucket(this.bucket).file(gcsFileName);
+      const [wavUrl] = await file.getSignedUrl({
+        version: 'v4',
+        action: 'read',
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days (maximum allowed)
+      });
+
       // Use the transcribeAudioFile method from TranscriptionService
       const transcriptResponse = await this.transcribeAudioFile(
         gcsUri,
@@ -167,7 +175,11 @@ export class StorageService {
         this.logger.error('Error during file cleanup:', cleanupError);
       }
 
-      return { meta: transcriptResponse, transcript };
+      return {
+        meta: transcriptResponse,
+        transcript,
+        wavUrl,
+      };
     } catch (error) {
       this.logger.error('Error processing transcription:', error);
       throw error;
@@ -213,7 +225,7 @@ export class StorageService {
     s3Bucket: string,
     s3Key: string,
     gcpDestination: string,
-  ): Promise<{ meta: any[]; transcript: string }> {
+  ) {
     try {
       // Download file from AWS S3
       const s3Object = await this.s3
@@ -225,19 +237,35 @@ export class StorageService {
         ? s3Object.Body
         : Buffer.from(s3Object.Body as string);
 
-      const transcript = await this.transcribeVideoContent(
-        fileBuffer,
-        gcpDestination,
-      );
+      const transcript = await this.transcribeVideoContent(fileBuffer);
 
       this.logger.log(
         `File successfully transferred from AWS S3 to GCP Storage: ${gcpDestination}`,
       );
       this.logger.log(`Transcript: ${transcript.transcript}`);
+      this.logger.log(`WAV URL: ${transcript.wavUrl}`);
       return transcript;
     } catch (error) {
       this.logger.error('Error transferring file:', error);
       throw new Error('File transfer failed');
     }
+  }
+
+  async refreshWavUrl(timestamp: string): Promise<string> {
+    const gcsFileName = `transcriptions/${timestamp}.wav`;
+    const file = this.storage.bucket(this.bucket).file(gcsFileName);
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      throw new Error('WAV file not found');
+    }
+
+    const [url] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'read',
+      expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return url;
   }
 }

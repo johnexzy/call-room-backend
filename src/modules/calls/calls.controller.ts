@@ -7,7 +7,7 @@ import {
   UseGuards,
   Request,
   Put,
-  Res,
+  Query,
 } from '@nestjs/common';
 import { CallsService } from './calls.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,10 +20,11 @@ import {
 } from '@nestjs/swagger';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
-import { Response } from 'express';
 
 import { UserExistsGuard } from '../users/guards/user-exists.guard';
 import { DataParam } from '@/decorator/data-param.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 @ApiTags('calls')
 @Controller({
@@ -75,9 +76,14 @@ export class CallsController {
 
   @Get('history')
   @ApiOperation({ summary: 'Get call history' })
-  @UseGuards(JwtAuthGuard, UserExistsGuard)
-  async getCallHistory(@Request() req) {
-    return this.callsService.getCallHistory(req.user.id, req.user.role);
+  @UseGuards(RolesGuard)
+  @Roles('representative', 'admin')
+  async getCallHistory(
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Query('status') status?: string,
+  ) {
+    return this.callsService.getCallHistory(page, limit, status);
   }
 
   @Post(':id/feedback')
@@ -131,52 +137,6 @@ export class CallsController {
   async startRecording(@Param('id') id: string) {
     return this.callsService.startAgoraCloudRecording(id);
   }
-
-  // @Post(':id/recording/stop')
-  // @ApiOperation({ summary: 'Stop call recording' })
-  // @UseGuards(JwtAuthGuard, UserExistsGuard)
-  // @UseInterceptors(
-  //   FileInterceptor('recording', {
-  //     limits: {
-  //       fileSize: 50 * 1024 * 1024, // 50MB
-  //     },
-  //     fileFilter: (req, file, callback) => {
-  //       Logger.log('Received file:', file); // Debug log
-  //       if (!file.mimetype.includes('audio/')) {
-  //         return callback(
-  //           new BadRequestException('Only audio files are allowed'),
-  //           false,
-  //         );
-  //       }
-  //       callback(null, true);
-  //     },
-  //     storage: memoryStorage(), // Use memory storage
-  //   }),
-  // )
-  // async stopRecording(
-  //   @Param('id') id: string,
-  //   @UploadedFile(
-  //     new ParseFilePipe({
-  //       validators: [
-  //         new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 }),
-  //         new FileTypeValidator({ fileType: 'audio/*' }),
-  //       ],
-  //       fileIsRequired: true,
-  //     }),
-  //   )
-  //   recording: Multer.File,
-  // ) {
-  //   Logger.log('Recording properties:', {
-  //     originalname: recording?.originalname,
-  //     mimetype: recording?.mimetype,
-  //     size: recording?.size,
-  //     buffer: recording?.buffer ? 'Buffer present' : 'No buffer',
-  //   });
-
-  //   this.callsService.stopRecording(id, recording);
-  //   return { status: 'recording_stopped' };
-  // }
-
   @Post(':id/recording/stop')
   @ApiOperation({ summary: 'Stop call recording' })
   @UseGuards(JwtAuthGuard, UserExistsGuard)
@@ -191,22 +151,17 @@ export class CallsController {
     );
   }
 
-  @Get(':id/recording/download')
-  @ApiOperation({ summary: 'Download call recording' })
-  async downloadRecording(@Param('id') id: string, @Res() res: Response) {
-    const recording = await this.callsService.getRecording(id);
-    res.setHeader('Content-Type', 'audio/mpeg');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="call-${id}.mp3"`,
-    );
-    return res.send(recording);
-  }
-
   @Get(':id/recording/url')
   @ApiOperation({ summary: 'Get signed URL for recording download' })
   async getRecordingUrl(@Param('id') id: string) {
     return this.callsService.getRecordingUrl(id);
+  }
+
+  @Post(':id/recording/refresh-wav')
+  @ApiOperation({ summary: 'Refresh WAV file signed URL' })
+  @UseGuards(JwtAuthGuard)
+  async refreshWavUrl(@Param('id') id: string) {
+    return this.callsService.refreshWavUrl(id);
   }
 
   @Get(':id/recording/long-url')

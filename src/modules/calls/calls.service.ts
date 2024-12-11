@@ -217,6 +217,8 @@ export class CallsService {
       startTime: call.startTime,
       endTime: call.endTime,
       status: call.status,
+      recordingUrl: call.recordingUrl,
+      recordingStatus: call.recordingStatus,
       transcripts: call.transcripts.map((transcript) => ({
         text: transcript.text,
         speaker: transcript.speaker,
@@ -272,12 +274,16 @@ export class CallsService {
     return call.notes ? JSON.parse(call.notes) : [];
   }
 
-  async getRecording(callId: string) {
-    return this.storageService.getRecording(callId);
-  }
-
   async getRecordingUrl(callId: string) {
-    return this.storageService.getSignedUrl(callId);
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    return call.recordingUrl;
   }
 
   async getLongLivedRecordingUrl(callId: string) {
@@ -398,7 +404,7 @@ export class CallsService {
     // Transfer file from AWS S3 to GCP Storage
     if (result.uploadingStatus === 'uploaded') {
       setTimeout(async () => {
-        const { transcript } =
+        const { transcript, wavUrl } =
           await this.storageService.transferFileFromAWSToGCP(
             this.configService.get('AWS_BUCKET_NAME'),
             result.fileList[0]?.fileName,
@@ -409,12 +415,44 @@ export class CallsService {
         const transcriptEntity = this.transcriptRepository.create({
           call: { id: callId },
           text: transcript,
-          speaker: 'system', // or appropriate speaker identification
+          speaker: 'system',
         });
 
         await this.transcriptRepository.save(transcriptEntity);
+
+        // Update call with the WAV file URL
+        await this.callRepository.update(callId, {
+          recordingUrl: wavUrl,
+        });
       }, 1000);
     }
     return { status: 'recording_stopped', ...response };
+  }
+
+  async refreshWavUrl(callId: string): Promise<string> {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+    });
+
+    if (!call) {
+      throw new NotFoundException('Call not found');
+    }
+
+    // Extract timestamp from the existing URL
+    const urlPath = call.recordingUrl?.split('/').pop(); // Get the filename
+    const timestamp = urlPath?.split('.')[0]; // Get the timestamp part
+
+    if (!timestamp) {
+      throw new Error('No WAV file URL found for this call');
+    }
+
+    const newUrl = await this.storageService.refreshWavUrl(timestamp);
+
+    // Update the call with the new URL
+    await this.callRepository.update(callId, {
+      recordingUrl: newUrl,
+    });
+
+    return newUrl;
   }
 }
