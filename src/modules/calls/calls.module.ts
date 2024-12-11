@@ -6,7 +6,7 @@ import { CallsService } from './calls.service';
 import { CallsController } from './calls.controller';
 import { CallsGateway } from './calls.gateway';
 import { CallsEvents } from './calls.events';
-import { Call, User, Feedback } from '../../entities';
+import { Call, User, Feedback, Transcript } from '../../entities';
 import { StorageModule } from '../storage/storage.module';
 import { RecordingModule } from '../recording/recording.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -15,7 +15,7 @@ import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Call, User, Feedback]),
+    TypeOrmModule.forFeature([Call, User, Feedback, Transcript]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
