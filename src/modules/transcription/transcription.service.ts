@@ -1,73 +1,116 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { WebSocket } from 'ws';
 import { ConfigService } from '@nestjs/config';
-
-interface TranscriptionResult {
-  text: string;
-  confidence: number;
-  timestamp: Date;
-}
+import { SpeechClient, protos } from '@google-cloud/speech';
+import { ISentence, ITranscript } from '@/types/index';
 
 @Injectable()
 export class TranscriptionService {
   private readonly logger = new Logger(TranscriptionService.name);
-  private readonly transcriptionSessions: Map<string, WebSocket> = new Map();
-  private readonly transcripts: Map<string, TranscriptionResult[]> = new Map();
 
-  constructor(private readonly configService: ConfigService) {}
+  private client: SpeechClient;
 
-  async startTranscription(callId: string): Promise<void> {
+  constructor(private readonly configService: ConfigService) {
+    this.client = new SpeechClient({
+      projectId: this.configService.get('GOOGLE_CLOUD_PROJECT_ID'),
+      credentials: {
+        client_email: this.configService.get('GOOGLE_CLOUD_CLIENT_EMAIL'),
+        private_key: this.configService
+          .get('GOOGLE_CLOUD_PRIVATE_KEY')
+          ?.replace(/\\n/g, '\n'),
+      },
+    });
+  }
+
+  async transcribeAudioFile(gcsUri: string, sampleRate: number) {
+    const { AudioEncoding } = protos.google.cloud.speech.v1.RecognitionConfig;
+    const request: protos.google.cloud.speech.v1.IRecognizeRequest = {
+      audio: {
+        uri: gcsUri,
+      },
+      config: {
+        encoding: AudioEncoding.LINEAR16,
+        sampleRateHertz: sampleRate,
+        languageCode: 'en-US',
+        enableAutomaticPunctuation: true,
+        maxAlternatives: 2,
+        enableWordTimeOffsets: true,
+        model: 'video',
+        useEnhanced: true,
+      },
+    };
+
     try {
-      // Initialize transcript storage
-      this.transcripts.set(callId, []);
+      this.logger.log('Starting audio transcription');
 
-      // Example implementation using a WebSocket connection to a transcription service
-      const ws = new WebSocket(
-        this.configService.get('TRANSCRIPTION_SERVICE_URL'),
-      );
+      const [operation] = await this.client.longRunningRecognize(request);
+      const [response] = await operation.promise();
 
-      ws.on('message', (data: string) => {
-        const result = JSON.parse(data) as TranscriptionResult;
-        const currentTranscript = this.transcripts.get(callId) || [];
-        currentTranscript.push(result);
-        this.transcripts.set(callId, currentTranscript);
+      const transcriptionData = [];
+
+      response?.results?.forEach((result) => {
+        const transcription = {
+          transcript: result.alternatives[0].transcript,
+          words: result?.alternatives[0]?.words?.map((wordInfo) => ({
+            word: wordInfo?.word,
+            start: `${wordInfo?.startTime?.seconds}.${Math.floor(
+              wordInfo?.startTime?.nanos / 100000000,
+            )}`,
+            end: `${wordInfo?.endTime?.seconds}.${Math.floor(
+              wordInfo?.endTime?.nanos / 100000000,
+            )}`,
+          })),
+        };
+        if (transcription.words.length > 0) {
+          this.addSentencesToTranscript(transcription, 10);
+          transcriptionData.push(transcription);
+        }
       });
 
-      ws.on('error', (error) => {
-        this.logger.error(`Transcription error for call ${callId}:`, error);
-      });
-
-      this.transcriptionSessions.set(callId, ws);
+      return transcriptionData;
     } catch (error) {
-      this.logger.error(
-        `Failed to start transcription for call ${callId}:`,
-        error,
-      );
-      throw error;
+      console.error('Error in audio transcription:', error);
+      throw new Error('Error in audio transcription');
     }
   }
 
-  async stopTranscription(callId: string): Promise<void> {
-    try {
-      const session = this.transcriptionSessions.get(callId);
-      if (session) {
-        session.close();
-        this.transcriptionSessions.delete(callId);
+  private addSentencesToTranscript(
+    transcriptObj: ITranscript,
+    maxWordsPerSentence: number,
+  ): void {
+    const sentences: ISentence[] = [];
+    let sentenceWords: string[] = [];
+    let sentenceStart = '';
+    let sentenceEnd = '';
+
+    const endSentence = () => {
+      if (sentenceWords.length > 0) {
+        const sentence: ISentence = {
+          sentence: sentenceWords.join(' '),
+          start: sentenceStart,
+          end: sentenceEnd,
+        };
+        sentences.push(sentence);
+        sentenceWords = [];
       }
-    } catch (error) {
-      this.logger.error(
-        `Failed to stop transcription for call ${callId}:`,
-        error,
-      );
-      throw error;
-    }
-  }
+    };
 
-  async getTranscript(callId: string): Promise<TranscriptionResult[]> {
-    const transcript = this.transcripts.get(callId);
-    if (!transcript) {
-      throw new Error(`No transcript found for call ${callId}`);
-    }
-    return transcript;
+    transcriptObj.words.forEach((wordObj, index) => {
+      if (sentenceWords.length === 0) {
+        sentenceStart = wordObj.start;
+      }
+      sentenceWords.push(wordObj.word);
+      sentenceEnd = wordObj.end;
+
+      // Check for natural sentence endings or max word count
+      if (
+        /[.!?]$/.test(wordObj.word) ||
+        sentenceWords.length >= maxWordsPerSentence ||
+        index === transcriptObj.words.length - 1
+      ) {
+        endSentence();
+      }
+    });
+
+    transcriptObj.sentences = sentences;
   }
 }

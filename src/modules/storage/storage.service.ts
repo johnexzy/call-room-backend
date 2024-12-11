@@ -1,15 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Storage } from '@google-cloud/storage';
 import { ConfigService } from '@nestjs/config';
+import { TranscriptionService } from '../transcription/transcription.service';
 import AWS from 'aws-sdk';
+import path from 'path';
+import ffmpeg from 'fluent-ffmpeg';
+import fs from 'fs';
+import { Readable } from 'stream';
 
 @Injectable()
 export class StorageService {
   private storage: Storage;
   private bucket: string;
   private s3: AWS.S3;
+  private readonly logger = new Logger(StorageService.name);
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private transcriptionService: TranscriptionService,
+  ) {
     this.storage = new Storage({
       projectId: this.configService.get('GOOGLE_CLOUD_PROJECT_ID'),
       credentials: {
@@ -21,7 +30,6 @@ export class StorageService {
     });
     this.bucket = this.configService.get('GOOGLE_CLOUD_BUCKET_NAME');
 
-    // Initialize AWS S3 client using ConfigService
     this.s3 = new AWS.S3({
       accessKeyId: this.configService.get('AWS_ACCESS_KEY_ID'),
       secretAccessKey: this.configService.get('AWS_SECRET_ACCESS_KEY'),
@@ -94,27 +102,141 @@ export class StorageService {
     return url;
   }
 
+  async transcribeAudioFile(gcsUri: string, sampleRate: number) {
+    return this.transcriptionService.transcribeAudioFile(gcsUri, sampleRate);
+  }
+
+  async transcribeVideoContent(file: Buffer | string, gcpDestination: string) {
+    try {
+      const tempDir = path.join(process.cwd(), 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir);
+      }
+
+      const timestamp = Date.now();
+      const audioFilePath = path.join(tempDir, `audio_${timestamp}.wav`);
+      const gcsFileName = `${gcpDestination}/audio_${timestamp}.wav`;
+
+      // Convert video to audio
+      await new Promise<void>((resolve, reject) => {
+        const command = ffmpeg();
+
+        if (typeof file === 'string') {
+          command.input(file);
+        } else {
+          // Create a readable stream from the buffer
+          const readableStream = new Readable();
+          readableStream.push(file);
+          readableStream.push(null);
+          command.input(readableStream);
+        }
+
+        command
+          .outputOptions('-vn')
+          .outputOptions('-ac 1')
+          .output(audioFilePath)
+          .on('end', () => resolve())
+          .on('error', (err) => reject(err))
+          .run();
+      });
+
+      if (!fs.existsSync(audioFilePath)) {
+        throw new Error('Audio file not found');
+      }
+
+      this.logger.log('Generated audio file');
+      const gcsUri = await this.uploadAudioToGCS(audioFilePath, gcsFileName);
+      const sampleRate = await this.getAudioSampleRate(audioFilePath);
+
+      // Use the transcribeAudioFile method from TranscriptionService
+      const transcriptResponse = await this.transcribeAudioFile(
+        gcsUri,
+        sampleRate,
+      );
+
+      const transcript = transcriptResponse
+        .map((result) => result?.transcript)
+        .join('\n');
+
+      // Clean up temporary files
+      try {
+        if (fs.existsSync(audioFilePath)) {
+          fs.unlinkSync(audioFilePath);
+        }
+      } catch (cleanupError) {
+        this.logger.error('Error during file cleanup:', cleanupError);
+      }
+
+      return { meta: transcriptResponse, transcript };
+    } catch (error) {
+      this.logger.error('Error processing transcription:', error);
+      throw error;
+    }
+  }
+
+  async uploadAudioToGCS(
+    audioFilePath: string,
+    gcsFileName: string,
+  ): Promise<string> {
+    const options = {
+      destination: gcsFileName,
+      resumable: true, // Enable resumable uploads
+      validation: 'crc32c', // Use CRC32C for data integrity
+    };
+
+    try {
+      await this.storage.bucket(this.bucket).upload(audioFilePath, options);
+
+      this.logger.log(
+        `Audio file uploaded to GCS: gs://${this.bucket}/${gcsFileName}`,
+      );
+      return `gs://${this.bucket}/${gcsFileName}`;
+    } catch (error) {
+      this.logger.error('Failed to upload audio file to GCS:', error);
+      throw error;
+    }
+  }
+  private getAudioSampleRate(audioFilePath: string): Promise<number> {
+    this.logger.log('Getting audio sample rate');
+    return new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(audioFilePath, (error, metadata) => {
+        if (error) {
+          return reject(error);
+        }
+        const sampleRate = metadata?.streams[0]?.sample_rate;
+        resolve(parseInt(sampleRate as unknown as string, 10));
+      });
+    });
+  }
+
   async transferFileFromAWSToGCP(
     s3Bucket: string,
     s3Key: string,
     gcpDestination: string,
-  ): Promise<void> {
+  ): Promise<{ meta: any[]; transcript: string }> {
     try {
       // Download file from AWS S3
       const s3Object = await this.s3
         .getObject({ Bucket: s3Bucket, Key: s3Key })
         .promise();
-      const fileBuffer = s3Object.Body as Buffer;
 
-      // Upload file to GCP Storage
-      const file = this.storage.bucket(this.bucket).file(gcpDestination);
-      await file.save(fileBuffer);
+      // Convert Body to Buffer if it isn't already
+      const fileBuffer = Buffer.isBuffer(s3Object.Body)
+        ? s3Object.Body
+        : Buffer.from(s3Object.Body as string);
 
-      console.log(
+      const transcript = await this.transcribeVideoContent(
+        fileBuffer,
+        gcpDestination,
+      );
+
+      this.logger.log(
         `File successfully transferred from AWS S3 to GCP Storage: ${gcpDestination}`,
       );
+      this.logger.log(`Transcript: ${transcript.transcript}`);
+      return transcript;
     } catch (error) {
-      console.error('Error transferring file:', error);
+      this.logger.error('Error transferring file:', error);
       throw new Error('File transfer failed');
     }
   }

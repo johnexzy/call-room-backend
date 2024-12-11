@@ -1,14 +1,8 @@
-import { Multer } from 'multer';
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
-import { User, Call, Feedback } from '@/entities';
+import { User, Call, Feedback, Transcript } from '@/entities';
 import { CallsGateway } from './calls.gateway';
 import { NotificationsService } from '../notifications/notifications.service';
 import * as crypto from 'crypto';
@@ -29,6 +23,8 @@ export class CallsService {
     private readonly feedbackRepository: Repository<Feedback>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Transcript)
+    private readonly transcriptRepository: Repository<Transcript>,
     private readonly callsEvents: CallsEvents,
     private readonly notificationsService: NotificationsService,
     private readonly storageService: StorageService,
@@ -276,87 +272,6 @@ export class CallsService {
     return call.notes ? JSON.parse(call.notes) : [];
   }
 
-  async startRecording(callId: string) {
-    const call = await this.callRepository.findOne({
-      where: { id: callId },
-    });
-
-    if (!call) {
-      throw new NotFoundException('Call not found');
-    }
-
-    if (call.status !== 'active') {
-      throw new BadRequestException('Can only record active calls');
-    }
-
-    // Initialize recording stream
-    this.callsEvents.startRecording(callId);
-
-    await this.callRepository.update(callId, {
-      recordingStatus: 'recording',
-    });
-
-    return { status: 'recording_started' };
-  }
-
-  async stopRecording(callId: string, recordingData?: Multer.File) {
-    const call = await this.callRepository.findOne({
-      where: { id: callId },
-    });
-
-    if (!call) {
-      throw new NotFoundException('Call not found');
-    }
-
-    try {
-      let processedBuffer: Buffer;
-
-      // Check if recording data was provided (i.e., from the controller)
-      if (recordingData) {
-        // Directly process buffer from the uploaded file (Multer.File)
-        processedBuffer = await this.recordingService.processAudioData(
-          recordingData.buffer,
-        );
-      } else {
-        // Handle case where no file was uploaded, using stored data
-        const audioData = this.callsEvents.getRecordingData(callId);
-        if (!audioData || audioData.length === 0) {
-          throw new BadRequestException('No recording data found');
-        }
-
-        // Create a Blob from the stored audio data, then convert to ArrayBuffer
-        const audioBlob = new Blob(audioData, { type: 'audio/webm' });
-        const arrayBuffer = await audioBlob.arrayBuffer();
-        processedBuffer = await this.recordingService.processAudioData(
-          Buffer.from(arrayBuffer),
-        );
-      }
-
-      // Save the processed buffer using the storage service
-      await this.storageService.saveRecording(
-        callId,
-        new Blob([processedBuffer], { type: 'audio/webm' }),
-      );
-
-      // Clear the recording data from memory
-      this.callsEvents.clearRecording(callId);
-
-      // Update the call record to indicate recording has completed
-      await this.callRepository.update(callId, {
-        recordingStatus: 'completed',
-      });
-
-      return { status: 'recording_stopped' };
-    } catch (error) {
-      console.error('Error processing recording:', error);
-      // Update the call record to indicate recording failure
-      await this.callRepository.update(callId, {
-        recordingStatus: 'failed',
-      });
-      throw new Error('Failed to process recording');
-    }
-  }
-
   async getRecording(callId: string) {
     return this.storageService.getRecording(callId);
   }
@@ -483,11 +398,21 @@ export class CallsService {
     // Transfer file from AWS S3 to GCP Storage
     if (result.uploadingStatus === 'uploaded') {
       setTimeout(async () => {
-        await this.storageService.transferFileFromAWSToGCP(
-          this.configService.get('AWS_BUCKET_NAME'),
-          result.fileList[0]?.fileName,
-          result.fileList[0]?.fileName,
-        );
+        const { transcript } =
+          await this.storageService.transferFileFromAWSToGCP(
+            this.configService.get('AWS_BUCKET_NAME'),
+            result.fileList[0]?.fileName,
+            result.fileList[0]?.fileName,
+          );
+
+        // Create a new Transcript entity
+        const transcriptEntity = this.transcriptRepository.create({
+          call: { id: callId },
+          text: transcript,
+          speaker: 'system', // or appropriate speaker identification
+        });
+
+        await this.transcriptRepository.save(transcriptEntity);
       }, 1000);
     }
     return { status: 'recording_stopped', ...response };

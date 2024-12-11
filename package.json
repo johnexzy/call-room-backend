@@ -25,6 +25,7 @@
     "migration:revert": "npm run typeorm -- migration:revert -d src/database/datasource.ts"
   },
   "dependencies": {
+    "@google-cloud/speech": "^6.7.0",
     "@google-cloud/storage": "^7.14.0",
     "@google/generative-ai": "^0.21.0",
     "@nestjs/cli": "^10.0.0",
