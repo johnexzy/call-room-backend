@@ -6,6 +6,7 @@ import AWS from 'aws-sdk';
 import path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
+import os from 'os';
 import { Readable } from 'stream';
 
 @Injectable()
@@ -106,13 +107,9 @@ export class StorageService {
     return this.transcriptionService.transcribeAudioFile(gcsUri, sampleRate);
   }
 
-  async transcribeVideoContent(_file: Buffer | string) {
+  async transcribeVideoContent(file: Buffer | string) {
     try {
-      const tempDir = path.join(process.cwd(), 'temp');
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir);
-      }
-
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'call-room-'));
       const timestamp = Date.now();
       const audioFilePath = path.join(tempDir, `audio_${timestamp}.wav`);
       const gcsFileName = `transcriptions/${timestamp}.wav`;
@@ -121,12 +118,12 @@ export class StorageService {
       await new Promise<void>((resolve, reject) => {
         const command = ffmpeg();
 
-        if (typeof _file === 'string') {
-          command.input(_file);
+        if (typeof file === 'string') {
+          command.input(file);
         } else {
           // Create a readable stream from the buffer
           const readableStream = new Readable();
-          readableStream.push(_file);
+          readableStream.push(file);
           readableStream.push(null);
           command.input(readableStream);
         }
@@ -149,8 +146,8 @@ export class StorageService {
       const sampleRate = await this.getAudioSampleRate(audioFilePath);
 
       // Get a signed URL for the WAV file
-      const file = this.storage.bucket(this.bucket).file(gcsFileName);
-      const [wavUrl] = await file.getSignedUrl({
+      const fl = this.storage.bucket(this.bucket).file(gcsFileName);
+      const [wavUrl] = await fl.getSignedUrl({
         version: 'v4',
         action: 'read',
         expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days (maximum allowed)
@@ -166,10 +163,13 @@ export class StorageService {
         .map((result) => result?.transcript)
         .join('\n');
 
-      // Clean up temporary files
+      // Clean up temporary files and directory
       try {
         if (fs.existsSync(audioFilePath)) {
           fs.unlinkSync(audioFilePath);
+        }
+        if (fs.existsSync(tempDir)) {
+          fs.rmdirSync(tempDir);
         }
       } catch (cleanupError) {
         this.logger.error('Error during file cleanup:', cleanupError);

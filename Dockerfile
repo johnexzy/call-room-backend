@@ -61,6 +61,15 @@ RUN pnpm install
 # Rebuild bcrypt
 RUN npm rebuild bcrypt --build-from-source
 
+# Create a non-root user
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Set permissions
+RUN chown -R appuser:appgroup /usr/src/app
+RUN chmod -R 755 /usr/src/app
+
+# Switch to non-root user
+USER appuser
 
 ###################
 # PRODUCTION
