@@ -9,6 +9,7 @@ import {
   Put,
   Query,
   Res,
+  NotFoundException,
 } from '@nestjs/common';
 import { CallsService } from './calls.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -192,12 +193,19 @@ export class CallsController {
   @ApiOperation({ summary: 'Download WAV recording' })
   @UseGuards(JwtAuthGuard)
   async downloadWavRecording(@Param('id') id: string, @Res() res: Response) {
-    const buffer = await this.storageService.getRecording(id);
+    const url = await this.callsService.getRecordingUrl(id);
+    if (!url) {
+      throw new NotFoundException('Recording not found');
+    }
+
+    const response = await fetch(url);
+    const buffer = await response.arrayBuffer();
+
     res.setHeader('Content-Type', 'audio/wav');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="call-${id}.wav"`,
     );
-    return res.send(buffer);
+    return res.send(Buffer.from(buffer));
   }
 }

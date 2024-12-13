@@ -51,20 +51,6 @@ export class StorageService {
     });
   }
 
-  async getRecording(callId: string): Promise<Buffer> {
-    const file = this.storage
-      .bucket(this.bucket)
-      .file(`recordings/${callId}.webm`);
-    const [exists] = await file.exists();
-
-    if (!exists) {
-      throw new Error('Recording not found');
-    }
-
-    const [buffer] = await file.download();
-    return buffer;
-  }
-
   async getSignedUrl(callId: string): Promise<string> {
     const file = this.storage
       .bucket(this.bucket)

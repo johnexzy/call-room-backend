@@ -46,7 +46,7 @@ cloud-sql-proxy
 # temp directory
 .temp
 .tmp
-
+temp/*
 # Runtime data
 pids
 *.pid
