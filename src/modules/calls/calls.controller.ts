@@ -8,6 +8,7 @@ import {
   Request,
   Put,
   Query,
+  Res,
 } from '@nestjs/common';
 import { CallsService } from './calls.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -25,6 +26,8 @@ import { UserExistsGuard } from '../users/guards/user-exists.guard';
 import { DataParam } from '@/decorator/data-param.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Response } from 'express';
+import { StorageService } from '@/modules/storage/storage.service';
 
 @ApiTags('calls')
 @Controller({
@@ -34,7 +37,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 export class CallsController {
-  constructor(private callsService: CallsService) {}
+  constructor(
+    private readonly callsService: CallsService,
+    private readonly storageService: StorageService,
+  ) {}
 
   @Get('active')
   @ApiOperation({ summary: 'Get active call for current user' })
@@ -180,5 +186,18 @@ export class CallsController {
     @DataParam('id') userId: string,
   ) {
     return this.callsService.generateAgoraToken(id, userId);
+  }
+
+  @Get(':id/recording/download-wav')
+  @ApiOperation({ summary: 'Download WAV recording' })
+  @UseGuards(JwtAuthGuard)
+  async downloadWavRecording(@Param('id') id: string, @Res() res: Response) {
+    const buffer = await this.storageService.getRecording(id);
+    res.setHeader('Content-Type', 'audio/wav');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="call-${id}.wav"`,
+    );
+    return res.send(buffer);
   }
 }
