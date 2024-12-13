@@ -6,7 +6,7 @@ import {
   SubscribeMessage,
 } from '@nestjs/websockets';
 import { Server } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { WS_NAMESPACES, WS_EVENTS } from '../../constants/websocket.constants';
 import {
   ExtendedSocket,
@@ -14,7 +14,8 @@ import {
 } from '../auth/gateway.ts/auth.middleware';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { CallsEvents } from './calls.events';
+import { CallsService } from './calls.service';
+import { AgoraTokenService } from './calls.events';
 
 @WebSocketGateway({
   namespace: WS_NAMESPACES.CALLS,
@@ -33,7 +34,9 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-    private readonly callsEvents: CallsEvents,
+    @Inject(forwardRef(() => CallsService))
+    private readonly callsService: CallsService,
+    private readonly agoraTokenService: AgoraTokenService,
   ) {}
 
   afterInit(server: Server) {
@@ -75,7 +78,7 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleAgoraToken(client: ExtendedSocket, payload: { callId: string }) {
     try {
       const uid = parseInt(client.subId, 10);
-      const token = await this.callsEvents.generateAgoraToken(
+      const token = await this.agoraTokenService.generateAgoraToken(
         payload.callId,
         uid,
       );

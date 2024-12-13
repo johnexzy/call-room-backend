@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
@@ -8,7 +14,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import * as crypto from 'crypto';
 import { StorageService } from '../storage/storage.service';
 import { RecordingService } from '../recording/recording.service';
-import { CallsEvents } from './calls.events';
+import { AgoraTokenService } from './calls.events';
 import { RtcTokenBuilder, RtcRole } from 'agora-access-token';
 import { ConfigService } from '@nestjs/config';
 
@@ -25,10 +31,11 @@ export class CallsService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Transcript)
     private readonly transcriptRepository: Repository<Transcript>,
-    private readonly callsEvents: CallsEvents,
+    private readonly agoraTokenService: AgoraTokenService,
     private readonly notificationsService: NotificationsService,
     private readonly storageService: StorageService,
     private readonly recordingService: RecordingService,
+    @Inject(forwardRef(() => CallsGateway))
     private readonly callsGateway: CallsGateway,
     private readonly configService: ConfigService,
   ) {}
@@ -284,10 +291,6 @@ export class CallsService {
     }
 
     return call.recordingUrl;
-  }
-
-  async getLongLivedRecordingUrl(callId: string) {
-    return this.storageService.getLongLivedUrl(callId);
   }
 
   async generateAgoraToken(callId: string, userId?: string) {

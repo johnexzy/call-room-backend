@@ -5,12 +5,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CallsService } from './calls.service';
 import { CallsController } from './calls.controller';
 import { CallsGateway } from './calls.gateway';
-import { CallsEvents } from './calls.events';
+import { AgoraTokenService } from './calls.events';
 import { Call, User, Feedback, Transcript } from '../../entities';
 import { StorageModule } from '../storage/storage.module';
 import { RecordingModule } from '../recording/recording.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { WebRTCModule } from '../webrtc/webrtc.module';
 import { UsersModule } from '../users/users.module';
 
 @Module({
@@ -28,11 +27,20 @@ import { UsersModule } from '../users/users.module';
     StorageModule,
     RecordingModule,
     NotificationsModule,
-    WebRTCModule,
     UsersModule,
   ],
-  providers: [CallsService, CallsGateway, CallsEvents],
+  providers: [
+    {
+      provide: CallsService,
+      useClass: CallsService,
+    },
+    {
+      provide: CallsGateway,
+      useClass: CallsGateway,
+    },
+    AgoraTokenService,
+  ],
   controllers: [CallsController],
-  exports: [CallsService, CallsEvents, CallsGateway],
+  exports: [CallsService, AgoraTokenService, CallsGateway],
 })
 export class CallsModule {}

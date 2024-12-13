@@ -10,6 +10,9 @@ import {
   Query,
   Res,
   NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { CallsService } from './calls.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,8 +24,8 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
+import { RecordingUrlDto } from './dto/recording-url.dto';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
-
 import { UserExistsGuard } from '../users/guards/user-exists.guard';
 import { DataParam } from '@/decorator/data-param.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -38,6 +41,8 @@ import { StorageService } from '@/modules/storage/storage.service';
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 export class CallsController {
+  private readonly logger = new Logger(CallsController.name);
+
   constructor(
     private readonly callsService: CallsService,
     private readonly storageService: StorageService,
@@ -141,45 +146,138 @@ export class CallsController {
   @Post(':id/recording/start')
   @ApiOperation({ summary: 'Start call recording' })
   @UseGuards(JwtAuthGuard, UserExistsGuard)
+  @ApiResponse({ status: 201, description: 'Recording started successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid call ID or call not active',
+  })
+  @ApiResponse({ status: 500, description: 'Failed to start recording' })
   async startRecording(@Param('id') id: string) {
-    return this.callsService.startAgoraCloudRecording(id);
+    try {
+      return await this.callsService.startAgoraCloudRecording(id);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error('Failed to start recording:', error);
+      throw new InternalServerErrorException('Failed to start recording');
+    }
   }
+
   @Post(':id/recording/stop')
   @ApiOperation({ summary: 'Stop call recording' })
   @UseGuards(JwtAuthGuard, UserExistsGuard)
+  @ApiResponse({ status: 200, description: 'Recording stopped successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid call ID or recording not active',
+  })
+  @ApiResponse({ status: 500, description: 'Failed to stop recording' })
   async stopRecording(
     @Param('id') id: string,
     @Body() body: { resourceId: string; sid: string },
   ) {
-    return this.callsService.stopAgoraCloudRecording(
-      id,
-      body.resourceId,
-      body.sid,
-    );
+    try {
+      if (!body.resourceId || !body.sid) {
+        throw new BadRequestException('resourceId and sid are required');
+      }
+      return await this.callsService.stopAgoraCloudRecording(
+        id,
+        body.resourceId,
+        body.sid,
+      );
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+      this.logger.error('Failed to stop recording:', error);
+      throw new InternalServerErrorException('Failed to stop recording');
+    }
   }
 
-  @Get(':id/recording/url')
-  @ApiOperation({ summary: 'Get signed URL for recording download' })
-  async getRecordingUrl(@Param('id') id: string) {
-    return this.callsService.getRecordingUrl(id);
-  }
-
-  @Post(':id/recording/refresh-wav')
-  @ApiOperation({ summary: 'Refresh WAV file signed URL' })
+  @Get(':id/recording')
+  @ApiOperation({
+    summary: 'Get recording URL with options for download and URL duration',
+  })
   @UseGuards(JwtAuthGuard)
-  async refreshWavUrl(@Param('id') id: string) {
-    return this.callsService.refreshWavUrl(id);
+  @ApiResponse({
+    status: 200,
+    description: 'Recording URL retrieved successfully',
+  })
+  @ApiResponse({ status: 404, description: 'Recording not found' })
+  @ApiResponse({ status: 500, description: 'Failed to get recording URL' })
+  async getRecording(
+    @Param('id') id: string,
+    @Query() query: RecordingUrlDto,
+    @Res() res: Response,
+  ) {
+    try {
+      const url = await this.callsService.getRecordingUrl(id);
+
+      if (!url) {
+        throw new NotFoundException('Recording not found');
+      }
+
+      if (query.download) {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new InternalServerErrorException(
+            'Failed to download recording',
+          );
+        }
+        const buffer = await response.arrayBuffer();
+
+        res.setHeader('Content-Type', 'audio/wav');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="call-${id}.wav"`,
+        );
+        res.end(Buffer.from(buffer));
+        return;
+      }
+
+      res.json({ url });
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error('Failed to get recording:', error);
+      throw new InternalServerErrorException('Failed to get recording');
+    }
   }
 
-  @Get(':id/recording/long-url')
+  @Post(':id/recording/refresh')
+  @ApiOperation({ summary: 'Refresh recording URL' })
+  @UseGuards(JwtAuthGuard)
+  @ApiResponse({ status: 200, description: 'URL refreshed successfully' })
+  @ApiResponse({ status: 404, description: 'Recording not found' })
+  @ApiResponse({ status: 500, description: 'Failed to refresh URL' })
+  async refreshRecordingUrl(@Param('id') id: string) {
+    try {
+      const url = await this.callsService.refreshWavUrl(id);
+      if (!url) {
+        throw new NotFoundException('Recording not found');
+      }
+      return { url };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error('Failed to refresh recording URL:', error);
+      throw new InternalServerErrorException('Failed to refresh recording URL');
+    }
+  }
+
   @UseGuards(AdminAuthGuard)
   @ApiOperation({
     summary: 'Get long-lived URL for recording download (Admin only)',
   })
-  async getLongLivedRecordingUrl(@Param('id') id: string) {
-    return this.callsService.getLongLivedRecordingUrl(id);
-  }
-
   @Get(':id/token')
   @UseGuards(JwtAuthGuard, UserExistsGuard)
   async getAgoraToken(
@@ -187,25 +285,5 @@ export class CallsController {
     @DataParam('id') userId: string,
   ) {
     return this.callsService.generateAgoraToken(id, userId);
-  }
-
-  @Get(':id/recording/download-wav')
-  @ApiOperation({ summary: 'Download WAV recording' })
-  @UseGuards(JwtAuthGuard)
-  async downloadWavRecording(@Param('id') id: string, @Res() res: Response) {
-    const url = await this.callsService.getRecordingUrl(id);
-    if (!url) {
-      throw new NotFoundException('Recording not found');
-    }
-
-    const response = await fetch(url);
-    const buffer = await response.arrayBuffer();
-
-    res.setHeader('Content-Type', 'audio/wav');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="call-${id}.wav"`,
-    );
-    return res.send(Buffer.from(buffer));
   }
 }
