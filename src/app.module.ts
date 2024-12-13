@@ -14,7 +14,7 @@ import { FeedbackModule } from './modules/feedback/feedback.module';
 import { AIModule } from './modules/ai/ai.module';
 import { KnowledgeBaseModule } from './modules/knowledge/knowledge-base.module';
 import { StorageModule } from './modules/storage/storage.module';
-import { WebRTCModule } from './modules/webrtc/webrtc.module';
+import { TranscriptionModule } from './modules/transcription/transcription.module';
 import { RecordingModule } from './modules/recording/recording.module';
 
 @Module({
@@ -57,7 +57,7 @@ import { RecordingModule } from './modules/recording/recording.module';
     AIModule,
     KnowledgeBaseModule,
     StorageModule,
-    WebRTCModule,
+    TranscriptionModule,
     RecordingModule,
   ],
   providers: [
