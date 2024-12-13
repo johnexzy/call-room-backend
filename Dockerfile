@@ -25,8 +25,8 @@ FROM node:18-alpine AS production
 
 WORKDIR /usr/src/app
 
-# Combine all RUN commands into one
-RUN apk add --no-cache ffmpeg && \
+# Combine all RUN commands into one, including build dependencies for bcrypt
+RUN apk add --no-cache ffmpeg g++ make python3 && \
     npm install -g pnpm && \
     addgroup -S appgroup && \
     adduser -S appuser -G appgroup
@@ -39,11 +39,12 @@ COPY --from=builder /usr/src/app/pnpm-lock.yaml ./
 # Set NODE_ENV environment variable
 ENV NODE_ENV production
 
-# Install dependencies and set permissions in one layer
+# Install dependencies, rebuild bcrypt, and cleanup in one layer
 RUN pnpm install --prod --frozen-lockfile && \
     pnpm store prune && \
     npm rebuild bcrypt --build-from-source && \
-    chown -R appuser:appgroup /usr/src/app
+    chown -R appuser:appgroup /usr/src/app && \
+    apk del g++ make python3  # Remove build dependencies after bcrypt rebuild
 
 USER appuser
 
