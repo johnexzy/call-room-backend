@@ -1,102 +1,52 @@
-###################
-# BUILD FOR LOCAL DEVELOPMENT
-###################
+FROM node:18-alpine AS builder
 
-FROM node:18-alpine AS development
-
-# Install FFmpeg
-RUN apk add --no-cache ffmpeg
-
-# Create app directory
-WORKDIR /usr/src/app
-
-# Install pnpm globally
-RUN npm install -g pnpm
-
-# Copy application dependency manifests
-COPY --chown=node:node package*.json ./
-
-# Install dependencies
-RUN pnpm install
-
-# Bundle app source
-COPY --chown=node:node . .
-
-# Use the node user from the image (instead of the root user)
-USER node
-
-###################
-# BUILD FOR PRODUCTION
-###################
-
-FROM node:18-alpine AS build
-
-# Install FFmpeg and build dependencies
-RUN apk add --no-cache ffmpeg python3 make g++
-
-# Verify FFmpeg installation
-RUN ffmpeg -version
+# Install build dependencies
+RUN apk add --no-cache ffmpeg g++ make python3
 
 WORKDIR /usr/src/app
 
 # Install pnpm globally
 RUN npm install -g pnpm
 
-COPY --chown=node:node package*.json ./
+# Copy only package files first to leverage Docker cache
+COPY package*.json pnpm-lock.yaml ./
 
-# Copy node_modules from development stage
-COPY --chown=node:node --from=development /usr/src/app/node_modules ./node_modules
+# Install dependencies with pnpm
+RUN pnpm install --frozen-lockfile
 
-COPY --chown=node:node . .
+# Copy source files
+COPY . .
 
 # Build the application
 RUN pnpm run build
 
-# Set NODE_ENV environment variable
-ENV NODE_ENV production
-
-# Install production dependencies and prune pnpm store
-RUN pnpm install
-
-# Rebuild bcrypt
-RUN npm rebuild bcrypt --build-from-source
-
-# Create a non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-# Set permissions
-RUN chown -R appuser:appgroup /usr/src/app
-RUN chmod -R 755 /usr/src/app
-
-# Switch to non-root user
-USER appuser
-
-###################
-# PRODUCTION
-###################
-
+# Production stage
 FROM node:18-alpine AS production
-
-# Install FFmpeg
-RUN apk add --no-cache ffmpeg
-
-# Verify FFmpeg installation
-RUN ffmpeg -version
 
 WORKDIR /usr/src/app
 
-# Copy the bundled code from the build stage to the production image
-COPY --chown=node:node --from=build /usr/src/app/node_modules ./node_modules
-COPY --chown=node:node --from=build /usr/src/app/dist ./dist
+# Combine all RUN commands into one
+RUN apk add --no-cache ffmpeg && \
+    npm install -g pnpm && \
+    addgroup -S appgroup && \
+    adduser -S appuser -G appgroup
 
-# Expose port
-EXPOSE 8080
+# Copy only necessary files from builder
+COPY --from=builder /usr/src/app/dist ./dist
+COPY --from=builder /usr/src/app/package.json ./
+COPY --from=builder /usr/src/app/pnpm-lock.yaml ./
 
 # Set NODE_ENV environment variable
 ENV NODE_ENV production
 
-# Use the node user from the image (instead of the root user)
-USER node
+# Install dependencies and set permissions in one layer
+RUN pnpm install --prod --frozen-lockfile && \
+    pnpm store prune && \
+    npm rebuild bcrypt --build-from-source && \
+    chown -R appuser:appgroup /usr/src/app
 
-# Start the server using the production build
+USER appuser
+
+EXPOSE 8080
+
 CMD ["node", "dist/main.js"]
