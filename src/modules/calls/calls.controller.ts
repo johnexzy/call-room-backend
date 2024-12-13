@@ -274,7 +274,6 @@ export class CallsController {
     }
   }
 
-  @UseGuards(AdminAuthGuard)
   @ApiOperation({
     summary: 'Get long-lived URL for recording download (Admin only)',
   })
