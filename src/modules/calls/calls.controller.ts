@@ -32,6 +32,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Response } from 'express';
 import { StorageService } from '@/modules/storage/storage.service';
+import { Readable } from 'stream';
 
 @ApiTags('calls')
 @Controller({
@@ -202,7 +203,6 @@ export class CallsController {
   @ApiOperation({
     summary: 'Get recording URL with options for download and URL duration',
   })
-  @UseGuards(JwtAuthGuard)
   @ApiResponse({
     status: 200,
     description: 'Recording URL retrieved successfully',
@@ -213,7 +213,7 @@ export class CallsController {
     @Param('id') id: string,
     @Query() query: RecordingUrlDto,
     @Res() res: Response,
-  ) {
+  ): Promise<void | Response> {
     try {
       const url = await this.callsService.getRecordingUrl(id);
 
@@ -228,18 +228,47 @@ export class CallsController {
             'Failed to download recording',
           );
         }
-        const buffer = await response.arrayBuffer();
 
+        // Set response headers
         res.setHeader('Content-Type', 'audio/wav');
         res.setHeader(
           'Content-Disposition',
           `attachment; filename="call-${id}.wav"`,
         );
-        res.end(Buffer.from(buffer));
-        return;
+
+        // Get content length if available
+        const contentLength = response.headers.get('content-length');
+        if (contentLength) {
+          res.setHeader('Content-Length', contentLength);
+        }
+
+        // Stream the response
+        if (response.body) {
+          const nodeStream = Readable.fromWeb(response.body);
+          nodeStream.pipe(res);
+
+          // Handle potential errors during streaming
+          nodeStream.on('error', (error) => {
+            this.logger.error('Error streaming recording:', error);
+            if (!res.headersSent) {
+              res.status(500).json({
+                message: 'Error occurred while streaming the recording',
+              });
+            }
+          });
+
+          return new Promise((resolve, reject) => {
+            nodeStream.on('end', resolve);
+            nodeStream.on('error', reject);
+          });
+        }
+
+        throw new InternalServerErrorException(
+          'Failed to get recording stream',
+        );
       }
 
-      res.json({ url });
+      return res.json({ url });
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -254,7 +283,6 @@ export class CallsController {
 
   @Post(':id/recording/refresh')
   @ApiOperation({ summary: 'Refresh recording URL' })
-  @UseGuards(JwtAuthGuard)
   @ApiResponse({ status: 200, description: 'URL refreshed successfully' })
   @ApiResponse({ status: 404, description: 'Recording not found' })
   @ApiResponse({ status: 500, description: 'Failed to refresh URL' })
@@ -274,11 +302,11 @@ export class CallsController {
     }
   }
 
+  @Get(':id/token')
   @ApiOperation({
     summary: 'Get long-lived URL for recording download (Admin only)',
   })
-  @Get(':id/token')
-  @UseGuards(JwtAuthGuard, UserExistsGuard)
+  @UseGuards(UserExistsGuard)
   async getAgoraToken(
     @Param('id') id: string,
     @DataParam('id') userId: string,
