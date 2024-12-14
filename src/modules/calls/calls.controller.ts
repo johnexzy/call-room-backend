@@ -32,7 +32,6 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Response } from 'express';
 import { StorageService } from '@/modules/storage/storage.service';
-import { Readable } from 'stream';
 
 @ApiTags('calls')
 @Controller({
@@ -221,94 +220,15 @@ export class CallsController {
         throw new NotFoundException('Recording not found');
       }
 
-      if (query.download) {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new InternalServerErrorException(
-            'Failed to download recording',
-          );
-        }
+      // Always return the URL directly, with appropriate headers for download if requested
+      const response = {
+        url,
+        filename: `call-${id}.wav`,
+        contentType: 'audio/wav',
+        isDownload: query.download,
+      };
 
-        // Set response headers
-        res.setHeader('Content-Type', 'audio/wav');
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="call-${id}.wav"`,
-        );
-
-        // Get content length if available
-        const contentLength = response.headers.get('content-length');
-        if (contentLength) {
-          res.setHeader('Content-Length', contentLength);
-        }
-
-        // Stream the response with proper error handling and backpressure
-        if (response.body) {
-          const nodeStream = Readable.fromWeb(response.body);
-          let bytesStreamed = 0;
-
-          // Configure stream for better memory handling
-          nodeStream.setMaxListeners(20); // Increase max listeners if needed
-          nodeStream.on('data', (chunk) => {
-            bytesStreamed += chunk.length;
-
-            // Check if client can receive more data
-            if (!res.write(chunk)) {
-              // If buffer is full, pause reading until drain
-              nodeStream.pause();
-
-              // Resume on drain
-              res.once('drain', () => {
-                nodeStream.resume();
-              });
-            }
-          });
-
-          // Handle stream errors
-          nodeStream.on('error', (error) => {
-            this.logger.error('Error streaming recording:', error);
-            if (!res.headersSent) {
-              res.status(500).json({
-                message: 'Error occurred while streaming the recording',
-              });
-            }
-            nodeStream.destroy();
-          });
-
-          // Handle stream end
-          nodeStream.on('end', () => {
-            this.logger.log(
-              `Finished streaming recording: ${bytesStreamed} bytes sent`,
-            );
-            if (!res.headersSent) {
-              res.end();
-            }
-          });
-
-          // Handle client disconnect
-          res.on('close', () => {
-            nodeStream.destroy();
-            this.logger.log('Client disconnected, stream destroyed');
-          });
-
-          // Handle timeout
-          res.on('timeout', () => {
-            nodeStream.destroy();
-            this.logger.error('Stream timeout');
-            if (!res.headersSent) {
-              res.status(408).json({ message: 'Request timeout' });
-            }
-          });
-
-          return;
-        }
-
-        throw new InternalServerErrorException(
-          'Failed to get recording stream',
-        );
-      }
-
-      return res.json({ url });
+      return res.json(response);
     } catch (error) {
       if (
         error instanceof NotFoundException ||
