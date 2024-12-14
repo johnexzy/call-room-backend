@@ -242,12 +242,29 @@ export class CallsController {
           res.setHeader('Content-Length', contentLength);
         }
 
-        // Stream the response
+        // Stream the response with proper error handling and backpressure
         if (response.body) {
           const nodeStream = Readable.fromWeb(response.body);
-          nodeStream.pipe(res);
+          let bytesStreamed = 0;
 
-          // Handle potential errors during streaming
+          // Configure stream for better memory handling
+          nodeStream.setMaxListeners(20); // Increase max listeners if needed
+          nodeStream.on('data', (chunk) => {
+            bytesStreamed += chunk.length;
+
+            // Check if client can receive more data
+            if (!res.write(chunk)) {
+              // If buffer is full, pause reading until drain
+              nodeStream.pause();
+
+              // Resume on drain
+              res.once('drain', () => {
+                nodeStream.resume();
+              });
+            }
+          });
+
+          // Handle stream errors
           nodeStream.on('error', (error) => {
             this.logger.error('Error streaming recording:', error);
             if (!res.headersSent) {
@@ -255,12 +272,35 @@ export class CallsController {
                 message: 'Error occurred while streaming the recording',
               });
             }
+            nodeStream.destroy();
           });
 
-          return new Promise((resolve, reject) => {
-            nodeStream.on('end', resolve);
-            nodeStream.on('error', reject);
+          // Handle stream end
+          nodeStream.on('end', () => {
+            this.logger.log(
+              `Finished streaming recording: ${bytesStreamed} bytes sent`,
+            );
+            if (!res.headersSent) {
+              res.end();
+            }
           });
+
+          // Handle client disconnect
+          res.on('close', () => {
+            nodeStream.destroy();
+            this.logger.log('Client disconnected, stream destroyed');
+          });
+
+          // Handle timeout
+          res.on('timeout', () => {
+            nodeStream.destroy();
+            this.logger.error('Stream timeout');
+            if (!res.headersSent) {
+              res.status(408).json({ message: 'Request timeout' });
+            }
+          });
+
+          return;
         }
 
         throw new InternalServerErrorException(
