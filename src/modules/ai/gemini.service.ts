@@ -131,7 +131,13 @@ export class GeminiService {
     }
   }
 
-  async suggestNextSteps(context: string) {
+  async suggestNextSteps(transcript: string): Promise<{
+    suggestions: Array<{
+      action: string;
+      priority: 'high' | 'medium' | 'low';
+      reasoning: string;
+    }>;
+  }> {
     const schema = {
       type: 'object',
       properties: {
@@ -144,25 +150,27 @@ export class GeminiService {
               priority: { type: 'string', enum: ['high', 'medium', 'low'] },
               reasoning: { type: 'string' },
             },
+            required: ['action', 'priority', 'reasoning'],
           },
         },
       },
       required: ['suggestions'],
     };
 
-    const prompt = `Based on this customer interaction context, suggest next steps:
+    const prompt = `Analyze this customer service call transcript and provide next steps:
     
-    "${context}"
+    "${transcript}"
     
-    Provide actionable suggestions with priority levels and reasoning.`;
+    Provide a list of suggested next steps, each with an action, priority level (high/medium/low), and reasoning.
+    Focus on actionable items that would improve customer satisfaction and resolution.`;
 
     try {
       const result = await this.model.generateContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.7,
-          topK: 3,
-          topP: 0.8,
+          temperature: 0.3,
+          topK: 1,
+          topP: 1,
           maxOutputTokens: 1000,
           responseMimeType: 'application/json',
           responseSchema: schema,
@@ -171,7 +179,7 @@ export class GeminiService {
 
       return JSON.parse(result.response.text());
     } catch (error) {
-      console.error('Next steps suggestion failed:', error);
+      console.error('Next steps generation failed:', error);
       throw error;
     }
   }

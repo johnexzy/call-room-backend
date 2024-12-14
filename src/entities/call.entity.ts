@@ -48,6 +48,25 @@ export class Call {
     };
   };
 
+  @Column('jsonb', { nullable: true })
+  aiSummary: {
+    summary: string;
+    keyPoints: string[];
+    actionItems: string[];
+    customerSentiment: string;
+    generatedAt: Date;
+  };
+
+  @Column('jsonb', { nullable: true })
+  aiNextSteps: {
+    suggestions: Array<{
+      action: string;
+      priority: 'high' | 'medium' | 'low';
+      reasoning: string;
+    }>;
+    generatedAt: Date;
+  };
+
   @Column('text', { nullable: true })
   notes: string;
 

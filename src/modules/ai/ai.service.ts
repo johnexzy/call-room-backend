@@ -43,17 +43,66 @@ export class AIService {
     return this.formatTranscript(call.transcripts);
   }
 
-  async generateCallSummary(callId: string) {
-    const transcript = await this.getCallTranscript(callId);
-    return this.geminiService.generateCallSummary(transcript);
+  async generateCallSummary(callId: string, forceRefresh = false) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+      relations: ['transcripts'],
+    });
+
+    if (!call) {
+      throw new Error('Call not found');
+    }
+
+    if (call.aiSummary && !forceRefresh) {
+      return call.aiSummary;
+    }
+
+    const transcript = this.formatTranscript(call.transcripts);
+    const summary = await this.geminiService.generateCallSummary(transcript);
+
+    await this.callRepository.update(callId, {
+      aiSummary: {
+        ...summary,
+        generatedAt: new Date(),
+      },
+    });
+
+    return summary;
   }
 
   async analyzeSentiment(text: string) {
     return this.geminiService.analyzeSentiment(text);
   }
 
-  async suggestNextSteps(context: string) {
-    return this.geminiService.suggestNextSteps(context);
+  async suggestNextSteps(callId: string, forceRefresh = false) {
+    const call = await this.callRepository.findOne({
+      where: { id: callId },
+      relations: ['transcripts'],
+    });
+
+    if (!call) {
+      throw new Error('Call not found');
+    }
+
+    if (call.aiNextSteps && !forceRefresh) {
+      return call.aiNextSteps;
+    }
+
+    const transcript = this.formatTranscript(call.transcripts);
+    const { suggestions } =
+      await this.geminiService.suggestNextSteps(transcript);
+
+    await this.callRepository.update(callId, {
+      aiNextSteps: {
+        suggestions,
+        generatedAt: new Date(),
+      },
+    });
+
+    return {
+      suggestions,
+      generatedAt: new Date(),
+    };
   }
 
   async getInsights(timeframe: string) {
