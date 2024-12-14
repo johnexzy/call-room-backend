@@ -45,15 +45,22 @@ export class AIController {
 
   @Post('calls/:id/summary')
   @ApiOperation({ summary: 'Generate call summary' })
-  async generateCallSummary(@Param('id') callId: string) {
-    const transcript = await this.aiService.getCallTranscript(callId);
-    return this.geminiService.generateCallSummary(transcript);
+  @ApiQuery({ name: 'refresh', required: false, type: 'boolean' })
+  async generateCallSummary(
+    @Param('id') callId: string,
+    @Query('refresh') refresh?: boolean,
+  ) {
+    return this.aiService.generateCallSummary(callId, refresh);
   }
 
-  @Post('suggest-next-steps')
+  @Post('calls/:id/next-steps')
   @ApiOperation({ summary: 'Get AI suggestions for next steps' })
-  async suggestNextSteps(@Body('context') context: string) {
-    return this.geminiService.suggestNextSteps(context);
+  @ApiQuery({ name: 'refresh', required: false, type: 'boolean' })
+  async suggestNextSteps(
+    @Param('id') callId: string,
+    @Query('refresh') refresh?: boolean,
+  ) {
+    return this.aiService.suggestNextSteps(callId, refresh);
   }
 
   @Get('calls/:id/quality')
