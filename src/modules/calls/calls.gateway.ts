@@ -20,7 +20,7 @@ import { AgoraTokenService } from './calls.events';
 @WebSocketGateway({
   namespace: WS_NAMESPACES.CALLS,
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3344',
     credentials: true,
   },
 })

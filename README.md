@@ -70,7 +70,7 @@ DB_NAME=callroom
 JWT_SECRET=your_jwt_secret_key
 
 # CORS
-CORS_ORIGINS=http://localhost:3000
+CORS_ORIGINS=http://localhost:3344
 ```
 
 ## Installation

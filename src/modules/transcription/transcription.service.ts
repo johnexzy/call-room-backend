@@ -2,12 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SpeechClient, protos } from '@google-cloud/speech';
 import { ISentence, ITranscript } from '@/types/index';
+import { Subject } from 'rxjs';
 
 @Injectable()
 export class TranscriptionService {
   private readonly logger = new Logger(TranscriptionService.name);
 
   private client: SpeechClient;
+  private streamingRecognizeSubjects: Map<string, Subject<string>> = new Map();
+  private streamingClients: Map<string, any> = new Map();
 
   constructor(private readonly configService: ConfigService) {
     this.client = new SpeechClient({
@@ -112,5 +115,86 @@ export class TranscriptionService {
     });
 
     transcriptObj.sentences = sentences;
+  }
+
+  private cleanupSession(sessionId: string): void {
+    const recognizeStream = this.streamingClients.get(sessionId);
+    const subject = this.streamingRecognizeSubjects.get(sessionId);
+
+    if (recognizeStream) {
+      recognizeStream.end();
+      this.streamingClients.delete(sessionId);
+    }
+
+    if (subject) {
+      subject.complete();
+      this.streamingRecognizeSubjects.delete(sessionId);
+    }
+  }
+
+  async startStreamingRecognition(sessionId: string): Promise<Subject<string>> {
+    // Cleanup any existing session
+    this.cleanupSession(sessionId);
+
+    const subject = new Subject<string>();
+    this.streamingRecognizeSubjects.set(sessionId, subject);
+
+    const request = {
+      config: {
+        encoding:
+          protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding
+            .LINEAR16,
+        sampleRateHertz: 48000,
+        languageCode: 'en-US',
+        enableAutomaticPunctuation: true,
+        model: 'default',
+      },
+      interimResults: true,
+    };
+
+    try {
+      const recognizeStream = this.client
+        .streamingRecognize(request)
+        .on('error', (error) => {
+          this.logger.error(`Error in streaming recognition: ${error.message}`);
+          subject.error(error);
+        })
+        .on('data', (data) => {
+          if (data.results[0] && data.results[0].alternatives[0]) {
+            const transcript = data.results[0].alternatives[0].transcript;
+            subject.next(transcript);
+          }
+        })
+        .on('end', () => {
+          subject.complete();
+          this.cleanupSession(sessionId);
+        });
+
+      this.streamingClients.set(sessionId, recognizeStream);
+      return subject;
+    } catch (error) {
+      this.cleanupSession(sessionId);
+      throw error;
+    }
+  }
+
+  async processAudioChunk(sessionId: string, audioData: string): Promise<void> {
+    const recognizeStream = this.streamingClients.get(sessionId);
+    if (!recognizeStream) {
+      throw new Error('No active streaming session found');
+    }
+
+    try {
+      const audioBuffer = Buffer.from(audioData, 'base64');
+      recognizeStream.write(audioBuffer);
+    } catch (error) {
+      this.logger.error(`Error processing audio chunk: ${error.message}`);
+      this.cleanupSession(sessionId);
+      throw error;
+    }
+  }
+
+  async stopStreamingRecognition(sessionId: string): Promise<void> {
+    this.cleanupSession(sessionId);
   }
 }

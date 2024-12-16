@@ -18,7 +18,7 @@ import { WS_NAMESPACES } from '@/constants/websocket.constants';
 @WebSocketGateway({
   namespace: WS_NAMESPACES.NOTIFICATIONS,
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3344',
   },
 })
 export class NotificationsGateway

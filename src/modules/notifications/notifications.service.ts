@@ -8,7 +8,7 @@ import { Notification } from '@/entities';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGINS?.split(',') || 'http://localhost:3344',
     credentials: true,
   },
 })
