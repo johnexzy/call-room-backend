@@ -84,9 +84,13 @@ export class TranscriptionGateway
   async handleDisconnect(client: Socket) {
     const sessionId = client.handshake.query.sessionId as string;
     if (sessionId) {
-      await this.transcriptionService.stopStreamingRecognition(sessionId);
-      this.activeConnections.delete(sessionId);
-      this.logger.log(`Client disconnected: ${sessionId}`);
+      try {
+        await this.transcriptionService.stopStreamingRecognition(sessionId);
+        this.activeConnections.delete(sessionId);
+        this.logger.log(`Client disconnected and cleaned up: ${sessionId}`);
+      } catch (error) {
+        this.logger.error(`Error during disconnect cleanup: ${error.message}`);
+      }
     }
   }
 

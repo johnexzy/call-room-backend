@@ -148,8 +148,19 @@ export class TranscriptionService {
         languageCode: 'en-US',
         enableAutomaticPunctuation: true,
         model: 'default',
+        useEnhanced: true,
+        enableWordTimeOffsets: true,
+        maxAlternatives: 1,
+        profanityFilter: true,
+        speechContexts: [
+          {
+            phrases: ['hello', 'hi', 'hey'],
+            boost: 20,
+          },
+        ],
       },
-      interimResults: true,
+      interimResults: false,
+      singleUtterance: false,
     };
 
     try {
@@ -162,7 +173,9 @@ export class TranscriptionService {
         .on('data', (data) => {
           if (data.results[0] && data.results[0].alternatives[0]) {
             const transcript = data.results[0].alternatives[0].transcript;
-            subject.next(transcript);
+            if (transcript.trim()) {
+              subject.next(transcript);
+            }
           }
         })
         .on('end', () => {

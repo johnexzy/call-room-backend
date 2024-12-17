@@ -11,6 +11,7 @@ import { StorageModule } from '../storage/storage.module';
 import { RecordingModule } from '../recording/recording.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
+import { TranscriptionModule } from '../transcription/transcription.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UsersModule } from '../users/users.module';
     RecordingModule,
     NotificationsModule,
     UsersModule,
+    TranscriptionModule,
   ],
   providers: [
     {
