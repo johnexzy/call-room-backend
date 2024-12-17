@@ -17,6 +17,7 @@ import { RecordingService } from '../recording/recording.service';
 import { AgoraTokenService } from './calls.events';
 import { RtcTokenBuilder, RtcRole } from 'agora-access-token';
 import { ConfigService } from '@nestjs/config';
+import { TranscriptionService } from '../transcription/transcription.service';
 
 @Injectable()
 export class CallsService {
@@ -35,6 +36,7 @@ export class CallsService {
     private readonly notificationsService: NotificationsService,
     private readonly storageService: StorageService,
     private readonly recordingService: RecordingService,
+    private readonly transcriptionService: TranscriptionService,
     @Inject(forwardRef(() => CallsGateway))
     private readonly callsGateway: CallsGateway,
     private readonly configService: ConfigService,
@@ -77,6 +79,14 @@ export class CallsService {
       throw new NotFoundException('Call not found');
     }
 
+    // Stop transcription for both users
+    await this.transcriptionService.stopStreamingRecognition(
+      `${callId}-${call.customer.id}`,
+    );
+    await this.transcriptionService.stopStreamingRecognition(
+      `${callId}-${call.representative.id}`,
+    );
+
     call.status = 'completed';
     call.endTime = new Date();
     if (notes) {
@@ -103,6 +113,14 @@ export class CallsService {
     if (!call) {
       throw new NotFoundException('Call not found');
     }
+
+    // Stop transcription for both users
+    await this.transcriptionService.stopStreamingRecognition(
+      `${callId}-${call.customer.id}`,
+    );
+    await this.transcriptionService.stopStreamingRecognition(
+      `${callId}-${call.representative.id}`,
+    );
 
     call.endTime = new Date();
     call.status = 'completed';

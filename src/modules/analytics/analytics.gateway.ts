@@ -36,7 +36,7 @@ interface QualityUpdate {
 @WebSocketGateway({
   namespace: WS_NAMESPACES.ANALYTICS,
   cors: {
-    origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGINS || 'http://localhost:3344',
     credentials: true,
   },
 })

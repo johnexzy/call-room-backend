@@ -20,7 +20,7 @@ export class ExtendedSocket extends Socket {
 @WebSocketGateway({
   namespace: WS_NAMESPACES.QUEUE,
   cors: {
-    origin: process.env.CORS_ORIGINS || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGINS || 'http://localhost:3344',
   },
 })
 export class QueueGateway implements OnGatewayConnection, OnGatewayDisconnect {

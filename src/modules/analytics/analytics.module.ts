@@ -15,7 +15,7 @@ import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
     JwtModule.registerAsync({
       useFactory: () => ({
         secret: process.env.JWT_SECRET,
-        signOptions: { expiresIn: '1h' },
+        signOptions: { expiresIn: '7d' },
       }),
     }),
   ],
